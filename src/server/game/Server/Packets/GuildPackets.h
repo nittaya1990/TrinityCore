@@ -24,6 +24,7 @@
 #include "MythicPlusPacketsCommon.h"
 #include "ObjectGuid.h"
 #include "PacketUtilities.h"
+#include "WowTime.h"
 
 namespace WorldPackets
 {
@@ -40,47 +41,41 @@ namespace WorldPackets
             ObjectGuid GuildGuid;
         };
 
+        struct GuildInfo
+        {
+            ObjectGuid GuildGUID;
+
+            uint32 VirtualRealmAddress = 0; ///< a special identifier made from the Index, BattleGroup and Region.
+
+            std::string GuildName;
+
+            struct GuildInfoRank
+            {
+                GuildInfoRank(uint32 id, uint32 order, std::string const& name)
+                    : RankID(id), RankOrder(order), RankName(name) { }
+
+                uint32 RankID;
+                uint32 RankOrder;
+                std::string RankName;
+            };
+
+            std::vector<GuildInfoRank> Ranks;
+
+            uint32 EmblemStyle = 0;
+            uint32 EmblemColor = 0;
+            uint32 BorderStyle = 0;
+            uint32 BorderColor = 0;
+            uint32 BackgroundColor = 0;
+        };
+
         class QueryGuildInfoResponse final : public ServerPacket
         {
         public:
-            struct GuildInfo
-            {
-                ObjectGuid GuildGUID;
-
-                uint32 VirtualRealmAddress = 0; ///< a special identifier made from the Index, BattleGroup and Region.
-
-                std::string GuildName;
-
-                struct GuildInfoRank
-                {
-                    GuildInfoRank(uint32 id, uint32 order, std::string const& name)
-                        : RankID(id), RankOrder(order), RankName(name) { }
-
-                    uint32 RankID;
-                    uint32 RankOrder;
-                    std::string RankName;
-
-                    bool operator<(GuildInfoRank const& right) const
-                    {
-                        return RankID < right.RankID;
-                    }
-                };
-
-                std::set<GuildInfoRank> Ranks;
-
-                uint32 EmblemStyle = 0;
-                uint32 EmblemColor = 0;
-                uint32 BorderStyle = 0;
-                uint32 BorderColor = 0;
-                uint32 BackgroundColor = 0;
-            };
-
             QueryGuildInfoResponse();
 
             WorldPacket const* Write() override;
 
             ObjectGuid GuildGuid;
-            ObjectGuid PlayerGuid;
             Optional<GuildInfo> Info;
         };
 
@@ -118,6 +113,8 @@ namespace WorldPackets
             uint8 Level = 0;
             uint8 ClassID = 0;
             uint8 Gender = 0;
+            uint64 GuildClubMemberID = 0;
+            uint8 RaceID = 0;
             bool Authenticated = false;
             bool SorEligible = false;
             GuildRosterProfessionData Profession[2];
@@ -134,19 +131,9 @@ namespace WorldPackets
             std::vector<GuildRosterMemberData> MemberData;
             std::string WelcomeText;
             std::string InfoText;
-            uint32 CreateDate = 0;
+            WowTime CreateDate;
             int32 NumAccounts = 0;
             int32 GuildFlags = 0;
-        };
-
-        class GuildRosterUpdate final : public ServerPacket
-        {
-        public:
-            GuildRosterUpdate() : ServerPacket(SMSG_GUILD_ROSTER_UPDATE, 4) { }
-
-            WorldPacket const* Write() override;
-
-            std::vector<GuildRosterMemberData> MemberData;
         };
 
         class GuildUpdateMotdText final : public ClientPacket
@@ -156,7 +143,7 @@ namespace WorldPackets
 
             void Read() override;
 
-            std::string MotdText;
+            String<255, Strings::NoHyperlinks> MotdText;
         };
 
         class GuildCommandResult final : public ServerPacket
@@ -176,7 +163,9 @@ namespace WorldPackets
         public:
             AcceptGuildInvite(WorldPacket&& packet) : ClientPacket(CMSG_ACCEPT_GUILD_INVITE, std::move(packet)) { }
 
-            void Read() override { }
+            void Read() override;
+
+            ObjectGuid GuildGuid;
         };
 
         class GuildDeclineInvitation final : public ClientPacket
@@ -184,7 +173,10 @@ namespace WorldPackets
         public:
             GuildDeclineInvitation(WorldPacket&& packet) : ClientPacket(CMSG_GUILD_DECLINE_INVITATION, std::move(packet)) { }
 
-            void Read() override { }
+            void Read() override;
+
+            ObjectGuid GuildGuid;
+            bool IsAuto = false;
         };
 
         class DeclineGuildInvites final : public ClientPacket
@@ -205,7 +197,7 @@ namespace WorldPackets
             void Read() override;
 
             std::string Name;
-            Optional<int32> Unused910;
+            Optional<int32> ArenaTeam;
         };
 
         class GuildInvite final : public ServerPacket
@@ -253,7 +245,6 @@ namespace WorldPackets
             ObjectGuid Guid;
             uint32 VirtualRealmAddress = 0;
             std::string Name;
-            bool Mobile = false;
             bool LoggedOn = false;
         };
 
@@ -452,9 +443,9 @@ namespace WorldPackets
             uint32 WithdrawGoldLimit = 0;
             uint32 Flags = 0;
             uint32 OldFlags = 0;
-            uint32 TabFlags[GUILD_BANK_MAX_TABS];
-            uint32 TabWithdrawItemLimit[GUILD_BANK_MAX_TABS];
-            std::string RankName;
+            uint32 TabFlags[GUILD_BANK_MAX_TABS] = { };
+            uint32 TabWithdrawItemLimit[GUILD_BANK_MAX_TABS] = { };
+            String<15, Strings::NoHyperlinks> RankName;
         };
 
         class GuildAddRank final : public ClientPacket
@@ -464,7 +455,7 @@ namespace WorldPackets
 
             void Read() override;
 
-            std::string Name;
+            String<15, Strings::NoHyperlinks> Name;
             int32 RankOrder = 0;
         };
 
@@ -551,7 +542,7 @@ namespace WorldPackets
 
             void Read() override;
 
-            std::string InfoText;
+            String<500, Strings::NoHyperlinks> InfoText;
         };
 
         class GuildSetMemberNote final : public ClientPacket
@@ -563,7 +554,7 @@ namespace WorldPackets
 
             ObjectGuid NoteeGUID;
             bool IsPublic = false;          ///< 0 == Officer, 1 == Public
-            std::string Note;
+            String<31, Strings::NoHyperlinks> Note;
         };
 
         class GuildMemberUpdateNote final : public ServerPacket
@@ -688,9 +679,9 @@ namespace WorldPackets
         struct GuildRewardItem
         {
             uint32 ItemID = 0;
-            uint32 Unk4 = 0;
+            uint32 AchievementLogic = 0;
             std::vector<uint32> AchievementsRequired;
-            Trinity::RaceMask<uint64> RaceMask = { 0 };
+            Trinity::RaceMask<uint64> RaceMask = { };
             int32 MinGuildLevel = 0;
             int32 MinGuildRep = 0;
             uint64 Cost = 0;
@@ -738,8 +729,8 @@ namespace WorldPackets
 
             ObjectGuid Banker;
             uint8 BankTab = 0;
-            std::string Name;
-            std::string Icon;
+            String<15, Strings::NoHyperlinks> Name;
+            String<127> Icon;
         };
 
         class GuildBankDepositMoney final : public ClientPacket
@@ -764,7 +755,6 @@ namespace WorldPackets
             uint8 Tab = 0;
             bool FullUpdate = false;
         };
-
 
         class GuildBankRemainingWithdrawMoneyQuery final : public ClientPacket
         {
@@ -1062,7 +1052,7 @@ namespace WorldPackets
             void Read() override;
 
             int32 Tab = 0;
-            std::string TabText;
+            String<500, Strings::NoHyperlinks> TabText;
         };
 
         class GuildQueryNews final : public ClientPacket
@@ -1078,7 +1068,7 @@ namespace WorldPackets
         struct GuildNewsEvent
         {
             int32 Id = 0;
-            uint32 CompletedDate = 0;
+            WowTime CompletedDate;
             int32 Type = 0;
             int32 Flags = 0;
             std::array<int32, 2> Data = { };
@@ -1142,10 +1132,10 @@ namespace WorldPackets
 
             WorldPacket const* Write() override;
 
-            int32 CurrentCount[GUILD_CHALLENGES_TYPES];
-            int32 MaxCount[GUILD_CHALLENGES_TYPES];
-            int32 Gold[GUILD_CHALLENGES_TYPES];
-            int32 MaxLevelGold[GUILD_CHALLENGES_TYPES];
+            int32 CurrentCount[GUILD_CHALLENGES_TYPES] = { };
+            int32 MaxCount[GUILD_CHALLENGES_TYPES] = { };
+            int32 Gold[GUILD_CHALLENGES_TYPES] = { };
+            int32 MaxLevelGold[GUILD_CHALLENGES_TYPES] = { };
         };
 
         class SaveGuildEmblem final : public ClientPacket

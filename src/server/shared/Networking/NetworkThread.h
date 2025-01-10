@@ -23,16 +23,11 @@
 #include "Errors.h"
 #include "IoContext.h"
 #include "Log.h"
-#include "Timer.h"
 #include <boost/asio/ip/tcp.hpp>
 #include <atomic>
-#include <chrono>
 #include <memory>
 #include <mutex>
-#include <set>
 #include <thread>
-
-using boost::asio::ip::tcp;
 
 template<class SocketType>
 class NetworkThread
@@ -82,7 +77,7 @@ public:
         return _connections;
     }
 
-    virtual void AddSocket(std::shared_ptr<SocketType> sock)
+    void AddSocket(std::shared_ptr<SocketType> sock)
     {
         std::lock_guard<std::mutex> lock(_newSocketsLock);
 
@@ -91,7 +86,7 @@ public:
         SocketAdded(sock);
     }
 
-    tcp::socket* GetSocketForAccept() { return &_acceptSocket; }
+    boost::asio::ip::tcp::socket* GetSocketForAccept() { return &_acceptSocket; }
 
 protected:
     virtual void SocketAdded(std::shared_ptr<SocketType> /*sock*/) { }
@@ -122,8 +117,8 @@ protected:
     {
         TC_LOG_DEBUG("misc", "Network Thread Starting");
 
-        _updateTimer.expires_from_now(boost::posix_time::milliseconds(10));
-        _updateTimer.async_wait(std::bind(&NetworkThread<SocketType>::Update, this));
+        _updateTimer.expires_after(1ms);
+        _updateTimer.async_wait([this](boost::system::error_code const&) { Update(); });
         _ioContext.run();
 
         TC_LOG_DEBUG("misc", "Network Thread exits");
@@ -136,8 +131,8 @@ protected:
         if (_stopped)
             return;
 
-        _updateTimer.expires_from_now(boost::posix_time::milliseconds(10));
-        _updateTimer.async_wait(std::bind(&NetworkThread<SocketType>::Update, this));
+        _updateTimer.expires_after(1ms);
+        _updateTimer.async_wait([this](boost::system::error_code const&) { Update(); });
 
         AddNewSockets();
 
@@ -172,7 +167,7 @@ private:
     SocketContainer _newSockets;
 
     Trinity::Asio::IoContext _ioContext;
-    tcp::socket _acceptSocket;
+    boost::asio::ip::tcp::socket _acceptSocket;
     Trinity::Asio::DeadlineTimer _updateTimer;
 };
 

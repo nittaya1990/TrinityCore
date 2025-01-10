@@ -24,13 +24,32 @@
 
 DoorData const doorData[] =
 {
-    { GO_PRISON_DOOR_01, DATA_KELIDAN_THE_BREAKER, DOOR_TYPE_PASSAGE },
-    { GO_PRISON_DOOR_02, DATA_THE_MAKER,           DOOR_TYPE_ROOM },
-    { GO_PRISON_DOOR_03, DATA_THE_MAKER,           DOOR_TYPE_PASSAGE },
-    { GO_PRISON_DOOR_04, DATA_BROGGOK,             DOOR_TYPE_PASSAGE },
-    { GO_PRISON_DOOR_05, DATA_BROGGOK,             DOOR_TYPE_ROOM },
-    { GO_SUMMON_DOOR,    DATA_KELIDAN_THE_BREAKER, DOOR_TYPE_PASSAGE },
-    { 0,                 0,                        DOOR_TYPE_ROOM } // END
+    { GO_PRISON_DOOR_01, DATA_KELIDAN_THE_BREAKER, EncounterDoorBehavior::OpenWhenDone },
+    { GO_PRISON_DOOR_02, DATA_THE_MAKER,           EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_PRISON_DOOR_03, DATA_THE_MAKER,           EncounterDoorBehavior::OpenWhenDone },
+    { GO_PRISON_DOOR_04, DATA_BROGGOK,             EncounterDoorBehavior::OpenWhenDone },
+    { GO_PRISON_DOOR_05, DATA_BROGGOK,             EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_SUMMON_DOOR,    DATA_KELIDAN_THE_BREAKER, EncounterDoorBehavior::OpenWhenDone },
+    { 0,                 0,                        EncounterDoorBehavior::OpenWhenNotInProgress } // END
+};
+
+ObjectData const creatureData[] =
+{
+    { NPC_BROGGOK,             DATA_BROGGOK             },
+    { 0,                       0                        } // END
+};
+
+ObjectData const gameObjectData[] =
+{
+    { GO_BROGGOK_LEVER,      DATA_BROGGOK_LEVER },
+    { 0,                     0                  } //END
+};
+
+DungeonEncounterData const encounters[] =
+{
+    { DATA_THE_MAKER, {{ 1922 }} },
+    { DATA_BROGGOK, {{ 1924 }} },
+    { DATA_KELIDAN_THE_BREAKER, {{ 1923 }} }
 };
 
 class instance_blood_furnace : public InstanceMapScript
@@ -45,6 +64,8 @@ class instance_blood_furnace : public InstanceMapScript
                 SetHeaders(DataHeader);
                 SetBossNumber(EncounterCount);
                 LoadDoorData(doorData);
+                LoadObjectData(creatureData, gameObjectData);
+                LoadDungeonEncounterData(encounters);
 
                 PrisonerCounter5        = 0;
                 PrisonerCounter6        = 0;
@@ -54,6 +75,8 @@ class instance_blood_furnace : public InstanceMapScript
 
             void OnCreatureCreate(Creature* creature) override
             {
+                InstanceScript::OnCreatureCreate(creature);
+
                 switch (creature->GetEntry())
                 {
                     case NPC_THE_MAKER:
@@ -65,7 +88,8 @@ class instance_blood_furnace : public InstanceMapScript
                     case NPC_KELIDAN_THE_BREAKER:
                         KelidanTheBreakerGUID = creature->GetGUID();
                         break;
-                    case NPC_PRISONER:
+                    case NPC_PRISONER1:
+                    case NPC_PRISONER2:
                         StorePrisoner(creature);
                         break;
                     default:
@@ -75,7 +99,7 @@ class instance_blood_furnace : public InstanceMapScript
 
             void OnUnitDeath(Unit* unit) override
             {
-                if (unit->GetTypeId() == TYPEID_UNIT && unit->GetEntry() == NPC_PRISONER)
+                if (unit->GetTypeId() == TYPEID_UNIT && (unit->GetEntry() == NPC_PRISONER1 || unit->GetEntry() == NPC_PRISONER2))
                     PrisonerDied(unit->GetGUID());
             }
 
@@ -87,7 +111,7 @@ class instance_blood_furnace : public InstanceMapScript
                 {
                     case GO_PRISON_DOOR_04:
                         PrisonDoor4GUID = go->GetGUID();
-                        /* fallthrough */
+                        [[fallthrough]];
                     case GO_PRISON_DOOR_01:
                     case GO_PRISON_DOOR_02:
                     case GO_PRISON_DOOR_03:
@@ -159,8 +183,6 @@ class instance_blood_furnace : public InstanceMapScript
                                 break;
                             case NOT_STARTED:
                                 ResetPrisons();
-                                if (GameObject* lever = instance->GetGameObject(BroggokLeverGUID))
-                                    lever->Respawn();
                                 break;
                             default:
                                 break;
@@ -175,44 +197,58 @@ class instance_blood_furnace : public InstanceMapScript
 
             void ResetPrisons()
             {
-                PrisonerCounter5 = PrisonersCell5.size();
                 ResetPrisoners(PrisonersCell5);
+                PrisonerCounter5 = uint8(PrisonersCell5.size());
                 HandleGameObject(PrisonCellGUIDs[DATA_PRISON_CELL5 - DATA_PRISON_CELL1], false);
 
-                PrisonerCounter6 = PrisonersCell6.size();
                 ResetPrisoners(PrisonersCell6);
+                PrisonerCounter6 = uint8(PrisonersCell6.size());
                 HandleGameObject(PrisonCellGUIDs[DATA_PRISON_CELL6 - DATA_PRISON_CELL1], false);
 
-                PrisonerCounter7 = PrisonersCell7.size();
                 ResetPrisoners(PrisonersCell7);
+                PrisonerCounter7 = uint8(PrisonersCell7.size());
                 HandleGameObject(PrisonCellGUIDs[DATA_PRISON_CELL7 - DATA_PRISON_CELL1], false);
 
-                PrisonerCounter8 = PrisonersCell8.size();
                 ResetPrisoners(PrisonersCell8);
+                PrisonerCounter8 = uint8(PrisonersCell8.size());
                 HandleGameObject(PrisonCellGUIDs[DATA_PRISON_CELL8 - DATA_PRISON_CELL1], false);
             }
 
-            void ResetPrisoners(GuidSet const& prisoners)
+            void ResetPrisoners(GuidSet& prisoners)
             {
-                for (GuidSet::const_iterator i = prisoners.begin(); i != prisoners.end(); ++i)
-                    if (Creature* prisoner = instance->GetCreature(*i))
+                for (GuidSet::const_iterator i = prisoners.begin(); i != prisoners.end();)
+                {
+                    if (Creature * prisoner = instance->GetCreature(*i))
+                    {
+                        if (!prisoner->IsAlive())
+                            i = prisoners.erase(i);
+                        else
+                            ++i;
+
                         ResetPrisoner(prisoner);
+                    }
+                    else
+                        ++i;
+                }
             }
 
             void ResetPrisoner(Creature* prisoner)
             {
                 if (!prisoner->IsAlive())
                     prisoner->Respawn(true);
-                prisoner->AddUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
+                prisoner->SetUnitFlag(UNIT_FLAG_NON_ATTACKABLE);
                 prisoner->SetImmuneToAll(true);
+                if (prisoner->IsAIEnabled())
+                    prisoner->AI()->EnterEvadeMode();
             }
 
             void StorePrisoner(Creature* creature)
             {
                 float posX = creature->GetPositionX();
                 float posY = creature->GetPositionY();
+                float posZ = creature->GetPositionZ();
 
-                if (posX >= 405.0f && posX <= 423.0f)
+                if (posX >= 405.0f && posX <= 423.0f && posZ <= 17)
                 {
                     if (posY >= 106.0f && posY <= 123.0f)
                     {
@@ -226,7 +262,7 @@ class instance_blood_furnace : public InstanceMapScript
                     }
                     else return;
                 }
-                else if (posX >= 490.0f && posX <= 506.0f)
+                else if (posX >= 490.0f && posX <= 506.0f && posZ <= 17)
                 {
                     if (posY >= 106.0f && posY <= 123.0f)
                     {

@@ -20,13 +20,14 @@
 
 #include "Define.h"
 #include "EnumFlag.h"
+#include "Optional.h"
 #include <array>
 
 /// Represents a map magic value of 4 bytes (used in versions)
 using u_map_magic = std::array<char, 4>;
 
 TC_COMMON_API extern u_map_magic const MapMagic;
-TC_COMMON_API extern u_map_magic const MapVersionMagic;
+TC_COMMON_API extern uint32 const MapVersionMagic;
 TC_COMMON_API extern u_map_magic const MapAreaMagic;
 TC_COMMON_API extern u_map_magic const MapHeightMagic;
 TC_COMMON_API extern u_map_magic const MapLiquidMagic;
@@ -37,7 +38,7 @@ TC_COMMON_API extern u_map_magic const MapLiquidMagic;
 struct map_fileheader
 {
     u_map_magic mapMagic;
-    u_map_magic versionMagic;
+    uint32 versionMagic;
     uint32 buildMagic;
     uint32 areaMapOffset;
     uint32 areaMapSize;
@@ -118,6 +119,50 @@ struct map_liquidHeader
     uint8  width;
     uint8  height;
     float  liquidLevel;
+};
+
+enum ZLiquidStatus : uint32
+{
+    LIQUID_MAP_NO_WATER     = 0x00000000,
+    LIQUID_MAP_ABOVE_WATER  = 0x00000001,
+    LIQUID_MAP_WATER_WALK   = 0x00000002,
+    LIQUID_MAP_IN_WATER     = 0x00000004,
+    LIQUID_MAP_UNDER_WATER  = 0x00000008,
+    LIQUID_MAP_OCEAN_FLOOR  = 0x00000010
+};
+
+#define MAP_LIQUID_STATUS_SWIMMING (LIQUID_MAP_IN_WATER | LIQUID_MAP_UNDER_WATER)
+#define MAP_LIQUID_STATUS_IN_CONTACT (MAP_LIQUID_STATUS_SWIMMING | LIQUID_MAP_WATER_WALK)
+
+struct LiquidData
+{
+    EnumFlag<map_liquidHeaderTypeFlags> type_flags = map_liquidHeaderTypeFlags::NoWater;
+    uint32 entry;
+    float  level;
+    float  depth_level;
+};
+
+struct WmoLocation
+{
+    WmoLocation() = default;
+    WmoLocation(int32 groupId, int32 nameSetId, int32 rootId, uint32 uniqueId)
+        : GroupId(groupId), NameSetId(nameSetId), RootId(rootId), UniqueId(uniqueId) { }
+
+    int32 GroupId = 0;
+    int32 NameSetId = 0;
+    int32 RootId = 0;
+    uint32 UniqueId = 0;
+};
+
+struct PositionFullTerrainStatus
+{
+    PositionFullTerrainStatus() : areaId(0), floorZ(0.0f), outdoors(true), liquidStatus(LIQUID_MAP_NO_WATER) { }
+    uint32 areaId;
+    float floorZ;
+    bool outdoors;
+    ZLiquidStatus liquidStatus;
+    Optional<WmoLocation> wmoLocation;
+    Optional<LiquidData> liquidInfo;
 };
 
 #endif // MapDefines_h__

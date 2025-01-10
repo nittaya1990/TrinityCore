@@ -19,12 +19,12 @@
 #include "ScriptMgr.h"
 #include "ScriptedCreature.h"
 
-enum Emotes
+enum VectusEmotes
 {
     EMOTE_FRENZY                 = 0
 };
 
-enum Spells
+enum VectusSpells
 {
     SPELL_FLAMESTRIKE            = 18399,
     SPELL_BLAST_WAVE             = 16046,
@@ -32,11 +32,23 @@ enum Spells
     SPELL_FRENZY                 = 8269  // 28371
 };
 
-enum Events
+enum VectusEvents
 {
     EVENT_FIRE_SHIELD = 1,
     EVENT_BLAST_WAVE,
     EVENT_FRENZY
+};
+
+enum VectusTalks
+{
+    TALK_IDLE   = 1,
+    TALK_IDLE2  = 2,
+    TALK_IDLE3  = 3
+};
+
+enum VectusPaths
+{
+    PATH_VECTUS_IDLE = 3904400
 };
 
 class boss_vectus : public CreatureScript
@@ -44,28 +56,24 @@ class boss_vectus : public CreatureScript
 public:
     boss_vectus() : CreatureScript("boss_vectus") { }
 
-    struct boss_vectusAI : public ScriptedAI
+    struct boss_vectusAI : public BossAI
     {
-        boss_vectusAI(Creature* creature) : ScriptedAI(creature) { }
+        boss_vectusAI(Creature* creature) : BossAI(creature, DATA_VECTUS) { }
 
-        void Reset() override
+        void JustEngagedWith(Unit* who) override
         {
-            events.Reset();
+            _JustEngagedWith(who);
+            events.ScheduleEvent(EVENT_FIRE_SHIELD, 2s);
+            events.ScheduleEvent(EVENT_BLAST_WAVE, 14s);
         }
 
-        void JustEngagedWith(Unit* /*who*/) override
-        {
-            events.ScheduleEvent(EVENT_FIRE_SHIELD, 2000);
-            events.ScheduleEvent(EVENT_BLAST_WAVE, 14000);
-        }
-
-        void DamageTaken(Unit* /*attacker*/, uint32& damage) override
+        void DamageTaken(Unit* /*attacker*/, uint32& damage, DamageEffectType /*damageType*/, SpellInfo const* /*spellInfo = nullptr*/) override
         {
             if (me->HealthBelowPctDamaged(25, damage))
             {
                 DoCast(me, SPELL_FRENZY);
                 Talk(EMOTE_FRENZY);
-                events.ScheduleEvent(EVENT_FRENZY, 24000);
+                events.ScheduleEvent(EVENT_FRENZY, 24s);
             }
         }
 
@@ -85,16 +93,16 @@ public:
                 {
                     case EVENT_FIRE_SHIELD:
                         DoCast(me, SPELL_FIRE_SHIELD);
-                        events.ScheduleEvent(EVENT_FIRE_SHIELD, 90000);
+                        events.ScheduleEvent(EVENT_FIRE_SHIELD, 90s);
                         break;
                     case EVENT_BLAST_WAVE:
                         DoCast(me, SPELL_BLAST_WAVE);
-                        events.ScheduleEvent(EVENT_BLAST_WAVE, 12000);
+                        events.ScheduleEvent(EVENT_BLAST_WAVE, 12s);
                         break;
                     case EVENT_FRENZY:
                         DoCast(me, SPELL_FRENZY);
                         Talk(EMOTE_FRENZY);
-                        events.ScheduleEvent(EVENT_FRENZY, 24000);
+                        events.ScheduleEvent(EVENT_FRENZY, 24s);
                         break;
                     default:
                         break;
@@ -103,12 +111,20 @@ public:
                 if (me->HasUnitState(UNIT_STATE_CASTING))
                     return;
             }
-
-            DoMeleeAttackIfReady();
         }
 
-        private:
-            EventMap events;
+        void WaypointReached(uint32 waypointId, uint32 pathId) override
+        {
+            if (pathId != PATH_VECTUS_IDLE)
+                return;
+
+            if (waypointId == 2)
+                Talk(TALK_IDLE);
+            else if (waypointId == 3)
+                Talk(TALK_IDLE2);
+            else if (waypointId == 4)
+                Talk(TALK_IDLE3);
+        }
     };
 
     CreatureAI* GetAI(Creature* creature) const override

@@ -18,25 +18,45 @@
 #ifndef __WORLDSOCKET_H__
 #define __WORLDSOCKET_H__
 
-#include "Common.h"
 #include "AsyncCallbackProcessor.h"
 #include "AuthDefines.h"
 #include "DatabaseEnvFwd.h"
 #include "MessageBuffer.h"
 #include "Socket.h"
+#include "WorldPacket.h"
 #include "WorldPacketCrypt.h"
 #include "MPSCQueue.h"
 #include <array>
-#include <chrono>
-#include <functional>
+#include <boost/asio/ip/tcp.hpp>
 #include <mutex>
+
+namespace JSON::RealmList
+{
+class RealmJoinTicket;
+}
 
 typedef struct z_stream_s z_stream;
 class EncryptablePacket;
 class WorldPacket;
 class WorldSession;
 enum ConnectionType : int8;
-enum OpcodeClient : uint16;
+enum OpcodeClient : uint32;
+
+class EncryptablePacket : public WorldPacket
+{
+public:
+    EncryptablePacket(WorldPacket const& packet, bool encrypt) : WorldPacket(packet), _encrypt(encrypt)
+    {
+        SocketQueueLink.store(nullptr, std::memory_order_relaxed);
+    }
+
+    bool NeedsEncryption() const { return _encrypt; }
+
+    std::atomic<EncryptablePacket*> SocketQueueLink;
+
+private:
+    bool _encrypt;
+};
 
 namespace WorldPackets
 {
@@ -62,7 +82,7 @@ struct PacketHeader
 
 struct IncomingPacketHeader : PacketHeader
 {
-    uint16 EncryptedOpcode;
+    uint32 EncryptedOpcode;
 };
 
 #pragma pack(pop)
@@ -73,10 +93,10 @@ class TC_GAME_API WorldSocket : public Socket<WorldSocket>
     static std::string const ClientConnectionInitialize;
     static uint32 const MinSizeForCompression;
 
-    static uint8 const AuthCheckSeed[16];
-    static uint8 const SessionKeySeed[16];
-    static uint8 const ContinuedSessionSeed[16];
-    static uint8 const EncryptionKeySeed[16];
+    static std::array<uint8, 32> const AuthCheckSeed;
+    static std::array<uint8, 32> const SessionKeySeed;
+    static std::array<uint8, 32> const ContinuedSessionSeed;
+    static std::array<uint8, 32> const EncryptionKeySeed;
 
     typedef Socket<WorldSocket> BaseSocket;
 
@@ -113,7 +133,7 @@ protected:
     ReadDataHandlerResult ReadDataHandler();
 private:
     void CheckIpCallback(PreparedQueryResult result);
-    void InitializeHandler(boost::system::error_code error, std::size_t transferedBytes);
+    void InitializeHandler(boost::system::error_code const& error, std::size_t transferedBytes);
 
     /// writes network.opcode log
     /// accessing WorldSession is not threadsafe, only do it when holding _worldSessionLock
@@ -125,7 +145,8 @@ private:
 
     void HandleSendAuthSession();
     void HandleAuthSession(std::shared_ptr<WorldPackets::Auth::AuthSession> authSession);
-    void HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::AuthSession> authSession, PreparedQueryResult result);
+    void HandleAuthSessionCallback(std::shared_ptr<WorldPackets::Auth::AuthSession> authSession,
+        std::shared_ptr<JSON::RealmList::RealmJoinTicket> joinTicket, PreparedQueryResult result);
     void HandleAuthContinuedSession(std::shared_ptr<WorldPackets::Auth::AuthContinuedSession> authSession);
     void HandleAuthContinuedSessionCallback(std::shared_ptr<WorldPackets::Auth::AuthContinuedSession> authSession, PreparedQueryResult result);
     void LoadSessionPermissionsCallback(PreparedQueryResult result);
@@ -136,12 +157,12 @@ private:
     ConnectionType _type;
     uint64 _key;
 
-    std::array<uint8, 16> _serverChallenge;
+    std::array<uint8, 32> _serverChallenge;
     WorldPacketCrypt _authCrypt;
     SessionKey _sessionKey;
-    std::array<uint8, 16> _encryptKey;
+    std::array<uint8, 32> _encryptKey;
 
-    std::chrono::steady_clock::time_point _LastPingTime;
+    TimePoint _LastPingTime;
     uint32 _OverSpeedPings;
 
     std::mutex _worldSessionLock;
@@ -151,7 +172,7 @@ private:
 
     MessageBuffer _headerBuffer;
     MessageBuffer _packetBuffer;
-    MPSCQueue<EncryptablePacket> _bufferQueue;
+    MPSCQueue<EncryptablePacket, &EncryptablePacket::SocketQueueLink> _bufferQueue;
     std::size_t _sendBufferSize;
 
     z_stream* _compressionStream;

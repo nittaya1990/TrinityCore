@@ -17,6 +17,7 @@
 
 #include "AuctionHousePackets.h"
 #include "AuctionHouseMgr.h"
+#include "DB2Stores.h"
 #include "ObjectGuid.h"
 #include "Util.h"
 
@@ -33,7 +34,7 @@ AuctionBucketKey& AuctionBucketKey::operator=(AuctionsBucketKey const& key)
         BattlePetSpeciesID = key.BattlePetSpeciesId;
 
     if (key.SuffixItemNameDescriptionId)
-        SuffixItemNameDescriptionID = key.SuffixItemNameDescriptionId;
+        ItemSuffix = key.SuffixItemNameDescriptionId;
 
     return *this;
 }
@@ -49,13 +50,13 @@ ByteBuffer& operator>>(ByteBuffer& data, AuctionBucketKey& itemKey)
     itemKey.ItemLevel = data.ReadBits(11);
 
     if (data.ReadBit())
-        itemKey.SuffixItemNameDescriptionID.emplace();
+        itemKey.ItemSuffix.emplace();
 
     if (itemKey.BattlePetSpeciesID)
         data >> *itemKey.BattlePetSpeciesID;
 
-    if (itemKey.SuffixItemNameDescriptionID)
-        data >> *itemKey.SuffixItemNameDescriptionID;
+    if (itemKey.ItemSuffix)
+        data >> *itemKey.ItemSuffix;
 
     return data;
 }
@@ -63,24 +64,24 @@ ByteBuffer& operator>>(ByteBuffer& data, AuctionBucketKey& itemKey)
 ByteBuffer& operator<<(ByteBuffer& data, AuctionBucketKey const& itemKey)
 {
     data.WriteBits(itemKey.ItemID, 20);
-    data.WriteBit(itemKey.BattlePetSpeciesID.is_initialized());
+    data.WriteBit(itemKey.BattlePetSpeciesID.has_value());
     data.WriteBits(itemKey.ItemLevel, 11);
-    data.WriteBit(itemKey.SuffixItemNameDescriptionID.is_initialized());
+    data.WriteBit(itemKey.ItemSuffix.has_value());
     data.FlushBits();
 
     if (itemKey.BattlePetSpeciesID)
         data << uint16(*itemKey.BattlePetSpeciesID);
 
-    if (itemKey.SuffixItemNameDescriptionID)
-        data << uint16(*itemKey.SuffixItemNameDescriptionID);
+    if (itemKey.ItemSuffix)
+        data << uint16(*itemKey.ItemSuffix);
 
     return data;
 }
 
 ByteBuffer& operator>>(ByteBuffer& data, AuctionListFilterSubClass& filterSubClass)
 {
-    data >> filterSubClass.ItemSubclass;
     data >> filterSubClass.InvTypeMask;
+    data >> filterSubClass.ItemSubclass;
 
     return data;
 }
@@ -98,8 +99,8 @@ ByteBuffer& operator>>(ByteBuffer& data, AuctionListFilterClass& filterClass)
 ByteBuffer& operator>>(ByteBuffer& data, AuctionSortDef& sortDef)
 {
     data.ResetBitPos();
-    sortDef.SortOrder = static_cast<AuctionHouseSortOrder>(data.ReadBits(4));
-    sortDef.ReverseSort = data.ReadBit();
+    data >> As<uint8>(sortDef.SortOrder);
+    data >> Bits<1>(sortDef.ReverseSort);
 
     return data;
 }
@@ -160,10 +161,10 @@ ByteBuffer& operator<<(ByteBuffer& data, BucketInfo const& bucketInfo)
     if (!bucketInfo.ItemModifiedAppearanceIDs.empty())
         data.append(bucketInfo.ItemModifiedAppearanceIDs.data(), bucketInfo.ItemModifiedAppearanceIDs.size());
 
-    data.WriteBit(bucketInfo.MaxBattlePetQuality.is_initialized());
-    data.WriteBit(bucketInfo.MaxBattlePetLevel.is_initialized());
-    data.WriteBit(bucketInfo.BattlePetBreedID.is_initialized());
-    data.WriteBit(bucketInfo.Unk901_1.is_initialized());
+    data.WriteBit(bucketInfo.MaxBattlePetQuality.has_value());
+    data.WriteBit(bucketInfo.MaxBattlePetLevel.has_value());
+    data.WriteBit(bucketInfo.BattlePetBreedID.has_value());
+    data.WriteBit(bucketInfo.BattlePetLevelMask.has_value());
     data.WriteBit(bucketInfo.ContainsOwnerItem);
     data.WriteBit(bucketInfo.ContainsOnlyCollectedAppearances);
     data.FlushBits();
@@ -177,29 +178,29 @@ ByteBuffer& operator<<(ByteBuffer& data, BucketInfo const& bucketInfo)
     if (bucketInfo.BattlePetBreedID)
         data << uint8(*bucketInfo.BattlePetBreedID);
 
-    if (bucketInfo.Unk901_1)
-        data << uint32(*bucketInfo.Unk901_1);
+    if (bucketInfo.BattlePetLevelMask)
+        data << uint32(*bucketInfo.BattlePetLevelMask);
 
     return data;
 }
 
 ByteBuffer& operator<<(ByteBuffer& data, AuctionItem const& auctionItem)
 {
-    data.WriteBit(auctionItem.Item.is_initialized());
+    data.WriteBit(auctionItem.Item.has_value());
     data.WriteBits(auctionItem.Enchantments.size(), 4);
     data.WriteBits(auctionItem.Gems.size(), 2);
-    data.WriteBit(auctionItem.MinBid.is_initialized());
-    data.WriteBit(auctionItem.MinIncrement.is_initialized());
-    data.WriteBit(auctionItem.BuyoutPrice.is_initialized());
-    data.WriteBit(auctionItem.UnitPrice.is_initialized());
+    data.WriteBit(auctionItem.MinBid.has_value());
+    data.WriteBit(auctionItem.MinIncrement.has_value());
+    data.WriteBit(auctionItem.BuyoutPrice.has_value());
+    data.WriteBit(auctionItem.UnitPrice.has_value());
     data.WriteBit(auctionItem.CensorServerSideInfo);
     data.WriteBit(auctionItem.CensorBidInfo);
-    data.WriteBit(auctionItem.AuctionBucketKey.is_initialized());
-    data.WriteBit(auctionItem.Creator.is_initialized());
+    data.WriteBit(auctionItem.AuctionBucketKey.has_value());
+    data.WriteBit(auctionItem.Creator.has_value());
     if (!auctionItem.CensorBidInfo)
     {
-        data.WriteBit(auctionItem.Bidder.is_initialized());
-        data.WriteBit(auctionItem.BidAmount.is_initialized());
+        data.WriteBit(auctionItem.Bidder.has_value());
+        data.WriteBit(auctionItem.BidAmount.has_value());
     }
 
     data.FlushBits();
@@ -279,9 +280,18 @@ void AuctionBrowseQuery::Read()
     _worldPacket >> Offset;
     _worldPacket >> MinLevel;
     _worldPacket >> MaxLevel;
-    Filters = _worldPacket.read<AuctionHouseFilterMask, uint32>();
-    KnownPets.resize(_worldPacket.read<uint32>());
+    _worldPacket >> Unused1007_1;
+    _worldPacket >> Unused1007_2;
+    _worldPacket >> As<uint32>(Filters);
+
+    uint32 knownPetsSize = _worldPacket.read<uint32>();
+    uint32 const sizeLimit = sBattlePetSpeciesStore.GetNumRows() / (sizeof(decltype(KnownPets)::value_type) * 8) + 1;
+    if (knownPetsSize >= sizeLimit)
+        throw PacketArrayMaxCapacityException(knownPetsSize, sizeLimit);
+
+    KnownPets.resize(knownPetsSize);
     _worldPacket >> MaxPetLevel;
+    _worldPacket >> Unused1026;
     for (uint8& knownPetMask : KnownPets)
         _worldPacket >> knownPetMask;
 
@@ -292,15 +302,15 @@ void AuctionBrowseQuery::Read()
     ItemClassFilters.resize(_worldPacket.ReadBits(3));
     Sorts.resize(_worldPacket.ReadBits(2));
 
-    for (AuctionSortDef& sortDef : Sorts)
-        _worldPacket >> sortDef;
-
     if (TaintedBy)
         _worldPacket >> *TaintedBy;
 
     Name = _worldPacket.ReadString(nameLength);
     for (AuctionListFilterClass& filterClass : ItemClassFilters)
         _worldPacket >> filterClass;
+
+    for (AuctionSortDef& sortDef : Sorts)
+        _worldPacket >> sortDef;
 }
 
 void AuctionCancelCommoditiesPurchase::Read()
@@ -341,14 +351,14 @@ void AuctionListBiddedItems::Read()
     AuctionIDs.resize(_worldPacket.ReadBits(7));
     Sorts.resize(_worldPacket.ReadBits(2));
 
-    for (AuctionSortDef& sortDef : Sorts)
-        _worldPacket >> sortDef;
-
     if (TaintedBy)
         _worldPacket >> *TaintedBy;
 
     for (uint32& auctionID : AuctionIDs)
         _worldPacket >> auctionID;
+
+    for (AuctionSortDef& sortDef : Sorts)
+        _worldPacket >> sortDef;
 }
 
 void AuctionListBucketsByBucketKeys::Read()
@@ -361,14 +371,14 @@ void AuctionListBucketsByBucketKeys::Read()
     BucketKeys.resize(_worldPacket.ReadBits(7));
     Sorts.resize(_worldPacket.ReadBits(2));
 
-    for (AuctionSortDef& sortDef : Sorts)
-        _worldPacket >> sortDef;
-
     if (TaintedBy)
         _worldPacket >> *TaintedBy;
 
     for (AuctionBucketKey& bucketKey : BucketKeys)
         _worldPacket >> bucketKey;
+
+    for (AuctionSortDef& sortDef : Sorts)
+        _worldPacket >> sortDef;
 }
 
 void AuctionListItemsByBucketKey::Read()
@@ -382,13 +392,13 @@ void AuctionListItemsByBucketKey::Read()
 
     Sorts.resize(_worldPacket.ReadBits(2));
 
-    for (AuctionSortDef& sortDef : Sorts)
-        _worldPacket >> sortDef;
-
     _worldPacket >> BucketKey;
 
     if (TaintedBy)
         _worldPacket >> *TaintedBy;
+
+    for (AuctionSortDef& sortDef : Sorts)
+        _worldPacket >> sortDef;
 }
 
 void AuctionListItemsByItemID::Read()
@@ -403,11 +413,11 @@ void AuctionListItemsByItemID::Read()
 
     Sorts.resize(_worldPacket.ReadBits(2));
 
-    for (AuctionSortDef& sortDef : Sorts)
-        _worldPacket >> sortDef;
-
     if (TaintedBy)
         _worldPacket >> *TaintedBy;
+
+    for (AuctionSortDef& sortDef : Sorts)
+        _worldPacket >> sortDef;
 }
 
 void AuctionListOwnedItems::Read()
@@ -420,11 +430,11 @@ void AuctionListOwnedItems::Read()
 
     Sorts.resize(_worldPacket.ReadBits(2));
 
-    for (AuctionSortDef& sortDef : Sorts)
-        _worldPacket >> sortDef;
-
     if (TaintedBy)
         _worldPacket >> *TaintedBy;
+
+    for (AuctionSortDef& sortDef : Sorts)
+        _worldPacket >> sortDef;
 }
 
 void AuctionPlaceBid::Read()
@@ -443,6 +453,7 @@ void AuctionRemoveItem::Read()
 {
     _worldPacket >> Auctioneer;
     _worldPacket >> AuctionID;
+    _worldPacket >> ItemID;
     if (_worldPacket.ReadBit())
     {
         TaintedBy.emplace();
@@ -545,9 +556,9 @@ WorldPacket const* AuctionCommandResult::Write()
 
 WorldPacket const* AuctionGetCommodityQuoteResult::Write()
 {
-    _worldPacket.WriteBit(TotalPrice.is_initialized());
-    _worldPacket.WriteBit(Quantity.is_initialized());
-    _worldPacket.WriteBit(QuoteDuration.is_initialized());
+    _worldPacket.WriteBit(TotalPrice.has_value());
+    _worldPacket.WriteBit(Quantity.has_value());
+    _worldPacket.WriteBit(QuoteDuration.has_value());
     _worldPacket << int32(ItemID);
     _worldPacket << uint32(DesiredDelay);
 
@@ -578,6 +589,8 @@ WorldPacket const* AuctionFavoriteList::Write()
 WorldPacket const* AuctionHelloResponse::Write()
 {
     _worldPacket << Guid;
+    _worldPacket << uint32(PurchasedItemDeliveryDelay);
+    _worldPacket << uint32(CancelledItemDeliveryDelay);
     _worldPacket.WriteBit(OpenForBusiness);
     _worldPacket.FlushBits();
 
@@ -586,7 +599,7 @@ WorldPacket const* AuctionHelloResponse::Write()
 
 WorldPacket const* AuctionListBiddedItemsResult::Write()
 {
-    _worldPacket << int32(Items.size());
+    _worldPacket << uint32(Items.size());
     _worldPacket << uint32(DesiredDelay);
     _worldPacket.WriteBit(HasMoreResults);
     _worldPacket.FlushBits();
@@ -615,18 +628,22 @@ WorldPacket const* AuctionListBucketsResult::Write()
 
 WorldPacket const* AuctionListItemsResult::Write()
 {
-    _worldPacket << uint32(Items.size());
-    _worldPacket << uint32(Unknown830);
-    _worldPacket << uint32(TotalCount);
-    _worldPacket << uint32(DesiredDelay);
-    _worldPacket.WriteBits(AsUnderlyingType(ListType), 2);
-    _worldPacket.WriteBit(HasMoreResults);
-    _worldPacket.FlushBits();
+    {
+        _worldPacket << uint32(Items.size());
+        _worldPacket << uint32(Unknown830);
+        _worldPacket << uint32(DesiredDelay);
+        for (AuctionItem const& item : Items)
+            _worldPacket << item;
+    }
 
-    _worldPacket << BucketKey;
+    {
+        _worldPacket.WriteBits(AsUnderlyingType(ListType), 2);
+        _worldPacket.WriteBit(HasMoreResults);
+        _worldPacket.FlushBits();
 
-    for (AuctionItem const& item : Items)
-        _worldPacket << item;
+        _worldPacket << BucketKey;
+        _worldPacket << uint32(TotalCount);
+    }
 
     return &_worldPacket;
 }

@@ -19,18 +19,27 @@
 #define PathMovementBase_h__
 
 #include "Define.h"
+#include <string>
 
 template<class Entity, class BasePath>
 class PathMovementBase
 {
     public:
+        using PathType = BasePath;
+
         PathMovementBase() : _path(), _currentNode(0) { }
-        virtual ~PathMovementBase() { };
+        explicit PathMovementBase(PathType&& path) : _path(std::move(path)), _currentNode(0) { }
+        virtual ~PathMovementBase() = default;
 
         uint32 GetCurrentNode() const { return _currentNode; }
 
+        virtual std::string GetDebugInfo() const
+        {
+            return "Current Node: " + std::to_string(GetCurrentNode());
+        }
+
     protected:
-        BasePath _path;
+        PathType _path;
         uint32 _currentNode;
 };
 

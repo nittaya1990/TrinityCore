@@ -72,7 +72,7 @@ struct npc_wrathbone_flayer : public ScriptedAI
 
     void Reset() override
     {
-        _events.ScheduleEvent(EVENT_GET_CHANNELERS, 3000);
+        _events.ScheduleEvent(EVENT_GET_CHANNELERS, 3s);
         Initialize();
         _bloodmageList.clear();
         _deathshaperList.clear();
@@ -82,8 +82,8 @@ struct npc_wrathbone_flayer : public ScriptedAI
 
     void JustEngagedWith(Unit* /*who*/) override
     {
-        _events.ScheduleEvent(EVENT_CLEAVE, 5000);
-        _events.ScheduleEvent(EVENT_IGNORED, 7000);
+        _events.ScheduleEvent(EVENT_CLEAVE, 5s);
+        _events.ScheduleEvent(EVENT_IGNORED, 7s);
         _enteredCombat = true;
     }
 
@@ -121,7 +121,7 @@ struct npc_wrathbone_flayer : public ScriptedAI
                                     (*itr)->Respawn();
                             }
 
-                        _events.ScheduleEvent(EVENT_SET_CHANNELERS, 3000);
+                        _events.ScheduleEvent(EVENT_SET_CHANNELERS, 3s);
 
                         break;
                     }
@@ -135,7 +135,7 @@ struct npc_wrathbone_flayer : public ScriptedAI
                             if (Creature* deathshaper = ObjectAccessor::GetCreature(*me, guid))
                                 deathshaper->CastSpell(nullptr, SPELL_SUMMON_CHANNEL);
 
-                        _events.ScheduleEvent(EVENT_SET_CHANNELERS, 12000);
+                        _events.ScheduleEvent(EVENT_SET_CHANNELERS, 12s);
 
                         break;
                     }
@@ -156,18 +156,17 @@ struct npc_wrathbone_flayer : public ScriptedAI
             {
                 case EVENT_CLEAVE:
                     DoCastVictim(SPELL_CLEAVE);
-                    _events.ScheduleEvent(EVENT_CLEAVE, urand(1000, 2000));
+                    _events.ScheduleEvent(EVENT_CLEAVE, 1s, 2s);
                     break;
                 case EVENT_IGNORED:
-                    if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                    if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                         DoCast(target, SPELL_IGNORED);
-                    _events.ScheduleEvent(EVENT_IGNORED, 10000);
+                    _events.ScheduleEvent(EVENT_IGNORED, 10s);
                     break;
                 default:
                     break;
             }
         }
-        DoMeleeAttackIfReady();
     }
 
 private:
@@ -225,8 +224,6 @@ struct npc_angered_soul_fragment : public ScriptedAI
 
         if (me->HasUnitState(UNIT_STATE_CASTING))
             return;
-
-        DoMeleeAttackIfReady();
     }
 
 private:
@@ -236,8 +233,6 @@ private:
 // 41986 - Anger
 class spell_soul_fragment_anger : public SpellScript
 {
-    PrepareSpellScript(spell_soul_fragment_anger);
-
     void HandleKill()
     {
         if (Creature* caster = GetCaster()->ToCreature())
@@ -253,8 +248,6 @@ class spell_soul_fragment_anger : public SpellScript
 // 39645 - Shadow Inferno
 class spell_illidari_nightlord_shadow_inferno : public AuraScript
 {
-    PrepareAuraScript(spell_illidari_nightlord_shadow_inferno);
-
     bool Validate(SpellInfo const* /*spellInfo*/) override
     {
         return ValidateSpellInfo({ SPELL_SHADOW_INFERNO_DAMAGE });
@@ -278,5 +271,5 @@ void AddSC_black_temple()
     RegisterBlackTempleCreatureAI(npc_wrathbone_flayer);
     RegisterBlackTempleCreatureAI(npc_angered_soul_fragment);
     RegisterSpellScript(spell_soul_fragment_anger);
-    RegisterAuraScript(spell_illidari_nightlord_shadow_inferno);
+    RegisterSpellScript(spell_illidari_nightlord_shadow_inferno);
 }

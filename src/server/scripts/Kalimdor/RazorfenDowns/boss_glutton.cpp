@@ -53,9 +53,9 @@ public:
             hp15 = false;
         }
 
-        void JustEngagedWith(Unit* /*who*/) override
+        void JustEngagedWith(Unit* who) override
         {
-            _JustEngagedWith();
+            BossAI::JustEngagedWith(who);
             Talk(SAY_AGGRO);
         }
 
@@ -86,8 +86,6 @@ public:
                 DoCast(me, SPELL_FRENZY);
                 hp15 = true;
             }
-
-            DoMeleeAttackIfReady();
         }
 
     private:

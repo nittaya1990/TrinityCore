@@ -18,8 +18,10 @@
 #ifndef _MMAP_COMMON_H
 #define _MMAP_COMMON_H
 
-#include "Common.h"
+#include "Define.h"
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #ifndef _WIN32
@@ -33,6 +35,11 @@
 #ifndef _WIN32
     #include <cerrno>
 #endif
+
+namespace VMAP
+{
+    class VMapManager2;
+}
 
 namespace MMAP
 {
@@ -78,12 +85,12 @@ namespace MMAP
     {
     #ifdef WIN32
         HANDLE hFind;
-        WIN32_FIND_DATA findFileInfo;
+        WIN32_FIND_DATAA findFileInfo;
         std::string directory;
 
         directory = dirpath + "/" + filter;
 
-        hFind = FindFirstFile(directory.c_str(), &findFileInfo);
+        hFind = FindFirstFileA(directory.c_str(), &findFileInfo);
 
         if (hFind == INVALID_HANDLE_VALUE)
             return LISTFILE_DIRECTORY_NOT_FOUND;
@@ -92,7 +99,7 @@ namespace MMAP
             if (strcmp(findFileInfo.cFileName, ".") != 0 && strcmp(findFileInfo.cFileName, "..") != 0)
                 fileList.push_back(std::string(findFileInfo.cFileName));
         }
-        while (FindNextFile(hFind, &findFileInfo));
+        while (FindNextFileA(hFind, &findFileInfo));
 
         FindClose(hFind);
 
@@ -121,6 +128,21 @@ namespace MMAP
 
         return LISTFILE_OK;
     }
+
+    struct MapEntry
+    {
+        uint8 MapType = 0;
+        int8 InstanceType = 0;
+        int16 ParentMapID = -1;
+        int32 Flags = 0;
+    };
+
+    extern std::unordered_map<uint32, MapEntry> sMapStore;
+
+    namespace VMapFactory
+    {
+        std::unique_ptr<VMAP::VMapManager2> CreateVMapManager();
+}
 }
 
 #endif

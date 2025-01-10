@@ -20,11 +20,10 @@
 
 #include "Define.h"
 #include <array>
+#include <span>
 #include <openssl/evp.h>
 
-namespace Trinity
-{
-namespace Crypto
+namespace Trinity::Crypto
 {
     class TC_COMMON_API AES
     {
@@ -37,10 +36,15 @@ namespace Crypto
         using Key = std::array<uint8, KEY_SIZE_BYTES>;
         using Tag = uint8[TAG_SIZE_BYTES];
 
-        AES(bool encrypting);
+        AES(bool encrypting, size_t keySizeBits = 128);
+        AES(AES const&) = delete;
+        AES(AES&&) = delete;
+        AES& operator=(AES const&) = delete;
+        AES& operator=(AES&&) = delete;
         ~AES();
 
         void Init(Key const& key);
+        void Init(std::span<uint8 const> key);
 
         bool Process(IV const& iv, uint8* data, size_t length, Tag& tag);
         bool ProcessNoIntegrityCheck(IV const& iv, uint8* data, size_t partialLength);
@@ -49,7 +53,6 @@ namespace Crypto
         EVP_CIPHER_CTX* _ctx;
         bool _encrypting;
     };
-}
 }
 
 #endif // Trinity_AES_h__

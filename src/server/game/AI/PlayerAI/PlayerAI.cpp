@@ -406,7 +406,7 @@ Creature* PlayerAI::GetCharmer() const
     return nullptr;
 }
 
-uint16 PlayerAI::GetSpec(Player const* who /*= nullptr*/) const
+ChrSpecialization PlayerAI::GetSpec(Player const* who /*= nullptr*/) const
 {
     return (!who || who == me) ? _selfSpec : who->GetPrimarySpecialization();
 }
@@ -416,28 +416,8 @@ bool PlayerAI::IsPlayerHealer(Player const* who)
     if (!who)
         return false;
 
-    switch (who->getClass())
-    {
-        case CLASS_WARRIOR:
-        case CLASS_HUNTER:
-        case CLASS_ROGUE:
-        case CLASS_DEATH_KNIGHT:
-        case CLASS_MAGE:
-        case CLASS_WARLOCK:
-        case CLASS_DEMON_HUNTER:
-        default:
-            return false;
-        case CLASS_PALADIN:
-            return who->GetPrimarySpecialization() == TALENT_SPEC_PALADIN_HOLY;
-        case CLASS_PRIEST:
-            return who->GetPrimarySpecialization() == TALENT_SPEC_PRIEST_DISCIPLINE || who->GetPrimarySpecialization() == TALENT_SPEC_PRIEST_HOLY;
-        case CLASS_SHAMAN:
-            return who->GetPrimarySpecialization() == TALENT_SPEC_SHAMAN_RESTORATION;
-        case CLASS_MONK:
-            return who->GetPrimarySpecialization() == TALENT_SPEC_MONK_MISTWEAVER;
-        case CLASS_DRUID:
-            return who->GetPrimarySpecialization() == TALENT_SPEC_DRUID_RESTORATION;
-    }
+    ChrSpecializationEntry const* chrSpec = who->GetPrimarySpecializationEntry();
+    return chrSpec && chrSpec->GetRole() == ChrSpecializationRole::Healer;
 }
 
 bool PlayerAI::IsPlayerRangedAttacker(Player const* who)
@@ -445,33 +425,8 @@ bool PlayerAI::IsPlayerRangedAttacker(Player const* who)
     if (!who)
         return false;
 
-    switch (who->getClass())
-    {
-        case CLASS_WARRIOR:
-        case CLASS_PALADIN:
-        case CLASS_ROGUE:
-        case CLASS_DEATH_KNIGHT:
-        default:
-            return false;
-        case CLASS_MAGE:
-        case CLASS_WARLOCK:
-            return true;
-        case CLASS_HUNTER:
-        {
-            // check if we have a ranged weapon equipped
-            Item const* rangedSlot = who->GetItemByPos(INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_RANGED);
-            if (ItemTemplate const* rangedTemplate = rangedSlot ? rangedSlot->GetTemplate() : nullptr)
-                if ((1 << rangedTemplate->GetSubClass()) & ITEM_SUBCLASS_MASK_WEAPON_RANGED)
-                    return true;
-            return false;
-        }
-        case CLASS_PRIEST:
-            return who->GetPrimarySpecialization() == TALENT_SPEC_PRIEST_SHADOW;
-        case CLASS_SHAMAN:
-            return who->GetPrimarySpecialization() == TALENT_SPEC_SHAMAN_ELEMENTAL;
-        case CLASS_DRUID:
-            return who->GetPrimarySpecialization() == TALENT_SPEC_DRUID_BALANCE;
-    }
+    ChrSpecializationEntry const* chrSpec = who->GetPrimarySpecializationEntry();
+    return chrSpec && chrSpec->GetFlags().HasFlag(ChrSpecializationFlag::Ranged);
 }
 
 PlayerAI::TargetedSpell PlayerAI::VerifySpellCast(uint32 spellId, Unit* target)
@@ -636,13 +591,11 @@ void PlayerAI::DoAutoAttackIfReady()
 {
     if (IsRangedAttacker())
         DoRangedAttackIfReady();
-    else
-        DoMeleeAttackIfReady();
 }
 
 void PlayerAI::CancelAllShapeshifts()
 {
-    std::list<AuraEffect*> const& shapeshiftAuras = me->GetAuraEffectsByType(SPELL_AURA_MOD_SHAPESHIFT);
+    Unit::AuraEffectList const& shapeshiftAuras = me->GetAuraEffectsByType(SPELL_AURA_MOD_SHAPESHIFT);
     std::set<Aura*> removableShapeshifts;
     for (AuraEffect* auraEff : shapeshiftAuras)
     {
@@ -652,7 +605,7 @@ void PlayerAI::CancelAllShapeshifts()
         SpellInfo const* auraInfo = aura->GetSpellInfo();
         if (!auraInfo)
             continue;
-        if (auraInfo->HasAttribute(SPELL_ATTR0_CANT_CANCEL))
+        if (auraInfo->HasAttribute(SPELL_ATTR0_NO_AURA_CANCEL))
             continue;
         if (!auraInfo->IsPositive() || auraInfo->IsPassive())
             continue;
@@ -693,7 +646,7 @@ Unit* SimpleCharmedPlayerAI::SelectAttackTarget() const
     if (Unit* charmer = me->GetCharmer())
     {
         if (UnitAI* charmerAI = charmer->GetAI())
-            return charmerAI->SelectTarget(SELECT_TARGET_RANDOM, 0, ValidTargetSelectPredicate(this));
+            return charmerAI->SelectTarget(SelectTargetMethod::Random, 0, ValidTargetSelectPredicate(this));
         return charmer->GetVictim();
     }
     return nullptr;
@@ -1226,19 +1179,18 @@ PlayerAI::TargetedSpell SimpleCharmedPlayerAI::SelectAppropriateCastForSpec()
 }
 
 static const float CASTER_CHASE_DISTANCE = 28.0f;
-void SimpleCharmedPlayerAI::UpdateAI(const uint32 diff)
+void SimpleCharmedPlayerAI::UpdateAI(uint32 diff)
 {
     Creature* charmer = GetCharmer();
     if (!charmer)
         return;
 
-    //kill self if charm aura has infinite duration
+    // kill self if charm aura has infinite duration
     if (charmer->IsInEvadeMode())
     {
-        Player::AuraEffectList const& auras = me->GetAuraEffectsByType(SPELL_AURA_MOD_CHARM);
-        for (Player::AuraEffectList::const_iterator iter = auras.begin(); iter != auras.end(); ++iter)
+        for (AuraEffect* aura : me->GetAuraEffectsByType(SPELL_AURA_MOD_CHARM))
         {
-            if ((*iter)->GetCasterGUID() == charmer->GetGUID() && (*iter)->GetBase()->IsPermanent())
+            if (aura->GetCasterGUID() == charmer->GetGUID() && aura->GetBase()->IsPermanent())
             {
                 me->KillSelf();
                 return;
@@ -1259,8 +1211,10 @@ void SimpleCharmedPlayerAI::UpdateAI(const uint32 diff)
                     _isFollowing = true;
                     me->AttackStop();
                     me->CastStop();
-                    me->StopMoving();
-                    me->GetMotionMaster()->Clear();
+
+                    if (me->HasUnitState(UNIT_STATE_CHASE))
+                        me->GetMotionMaster()->Remove(CHASE_MOTION_TYPE);
+
                     me->GetMotionMaster()->MoveFollow(charmer, PET_FOLLOW_DIST, PET_FOLLOW_ANGLE);
                 }
                 return;
@@ -1296,8 +1250,8 @@ void SimpleCharmedPlayerAI::UpdateAI(const uint32 diff)
                 _castCheckTimer = 0;
             else
             {
-                if (IsRangedAttacker())
-                { // chase to zero if the target isn't in line of sight
+                if (IsRangedAttacker()) // chase to zero if the target isn't in line of sight
+                {
                     bool inLOS = me->IsWithinLOSInMap(target);
                     if (_chaseCloser != !inLOS)
                     {
@@ -1323,8 +1277,10 @@ void SimpleCharmedPlayerAI::UpdateAI(const uint32 diff)
         _isFollowing = true;
         me->AttackStop();
         me->CastStop();
-        me->StopMoving();
-        me->GetMotionMaster()->Clear();
+
+        if (me->HasUnitState(UNIT_STATE_CHASE))
+            me->GetMotionMaster()->Remove(CHASE_MOTION_TYPE);
+
         me->GetMotionMaster()->MoveFollow(charmer, PET_FOLLOW_DIST, PET_FOLLOW_ANGLE);
     }
 }
@@ -1335,17 +1291,17 @@ void SimpleCharmedPlayerAI::OnCharmed(bool isNew)
     {
         me->CastStop();
         me->AttackStop();
-        me->StopMoving();
-        me->GetMotionMaster()->Clear();
-        me->GetMotionMaster()->MovePoint(0, me->GetPosition(), false); // force re-sync of current position for all clients
+
+        if (me->GetMotionMaster()->Size() <= 1) // if there is no current movement (we dont want to erase/overwrite any existing stuff)
+            me->GetMotionMaster()->MovePoint(0, me->GetPosition(), false); // force re-sync of current position for all clients
     }
     else
     {
         me->CastStop();
         me->AttackStop();
-        // @todo only voluntary movement (don't cancel stuff like death grip or charge mid-animation)
-        me->GetMotionMaster()->Clear();
-        me->StopMoving();
+
+        me->GetMotionMaster()->Clear(MOTION_PRIORITY_NORMAL);
     }
+
     PlayerAI::OnCharmed(isNew);
 }

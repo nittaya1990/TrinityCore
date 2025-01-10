@@ -16,6 +16,7 @@
  */
 
 #include "MoveSplineInit.h"
+#include "Creature.h"
 #include "MovementPackets.h"
 #include "MoveSpline.h"
 #include "PathGenerator.h"
@@ -85,10 +86,11 @@ namespace Movement
         // correct first vertex
         args.path[0] = real_position;
         args.initialOrientation = real_position.orientation;
-        move_spline.onTransport = !unit->GetTransGUID().IsEmpty();
+        args.flags.Enter_Cycle = args.flags.Cyclic;
+        move_spline.onTransport = transport;
 
         uint32 moveFlags = unit->m_movementInfo.GetMovementFlags();
-        if (!args.flags.backward)
+        if (!args.flags.Backward)
             moveFlags = (moveFlags & ~MOVEMENTFLAG_BACKWARD) | MOVEMENTFLAG_FORWARD;
         else
             moveFlags = (moveFlags & ~MOVEMENTFLAG_FORWARD) | MOVEMENTFLAG_BACKWARD;
@@ -107,7 +109,24 @@ namespace Movement
                 moveFlagsForSpeed &= ~MOVEMENTFLAG_WALKING;
 
             args.velocity = unit->GetSpeed(SelectSpeedType(moveFlagsForSpeed));
+            if (Creature* creature = unit->ToCreature())
+                if (creature->HasSearchedAssistance())
+                    args.velocity *= 0.66f;
         }
+
+        // limit the speed in the same way the client does
+        float speedLimit = [&]()
+        {
+            if (args.flags.UnlimitedSpeed)
+                return std::numeric_limits<float>::max();
+
+            if (args.flags.Falling || args.flags.Catmullrom || args.flags.Flying || args.flags.Parabolic)
+                return 50.0f;
+
+            return std::max(28.0f, unit->GetSpeed(MOVE_RUN) * 4.0f);
+        }();
+
+        args.velocity = std::min(args.velocity, speedLimit);
 
         if (!args.Validate(unit))
             return 0;
@@ -156,7 +175,7 @@ namespace Movement
             loc.orientation = unit->GetOrientation();
         }
 
-        args.flags = MoveSplineFlag::Done;
+        args.flags = MoveSplineFlagEnum::Done;
         unit->m_movementInfo.RemoveMovementFlag(MOVEMENTFLAG_FORWARD);
         move_spline.onTransport = transport;
         move_spline.Initialize(args);
@@ -164,7 +183,7 @@ namespace Movement
         WorldPackets::Movement::MonsterMove packet;
         packet.MoverGUID = unit->GetGUID();
         packet.Pos = Position(loc.x, loc.y, loc.z, loc.orientation);
-        packet.SplineData.StopDistanceTolerance = 2;
+        packet.SplineData.StopSplineStyle = 2;
         packet.SplineData.ID = move_spline.GetId();
 
         if (transport)
@@ -182,11 +201,11 @@ namespace Movement
         // Elevators also use MOVEMENTFLAG_ONTRANSPORT but we do not keep track of their position changes
         args.TransformForTransport = !unit->GetTransGUID().IsEmpty();
         // mix existing state into new
-        args.flags.canSwim = unit->CanSwim();
         args.walk = unit->HasUnitMovementFlag(MOVEMENTFLAG_WALKING);
-        args.flags.flying = unit->HasUnitMovementFlag(MovementFlags(MOVEMENTFLAG_CAN_FLY | MOVEMENTFLAG_DISABLE_GRAVITY));
-        args.flags.smoothGroundPath = true; // enabled by default, CatmullRom mode or client config "pathSmoothing" will disable this
-        args.flags.steering = unit->HasNpcFlag2(UNIT_NPC_FLAG_2_STEERING);
+        args.flags.CanSwim = unit->CanSwim();
+        args.flags.Flying = unit->HasUnitMovementFlag(MovementFlags(MOVEMENTFLAG_CAN_FLY | MOVEMENTFLAG_DISABLE_GRAVITY));
+        args.flags.FastSteering = true;
+        args.flags.Steering = unit->HasNpcFlag2(UNIT_NPC_FLAG_2_STEERING) || !unit->IsInCombat();
     }
 
     MoveSplineInit::~MoveSplineInit() = default;
@@ -199,6 +218,11 @@ namespace Movement
         args.facing.f.y = finalSpot.y;
         args.facing.f.z = finalSpot.z;
         args.facing.type = MONSTER_MOVE_FACING_SPOT;
+    }
+
+    void MoveSplineInit::SetFacing(float x, float y, float z)
+    {
+        SetFacing({ x, y, z });
     }
 
     void MoveSplineInit::SetFacing(Unit const* target)
@@ -214,8 +238,8 @@ namespace Movement
         {
             if (Unit* vehicle = unit->GetVehicleBase())
                 angle -= vehicle->GetOrientation();
-            else if (Transport* transport = unit->GetTransport())
-                angle -= transport->GetOrientation();
+            else if (TransportBase* transport = unit->GetTransport())
+                angle -= transport->GetTransportOrientation();
         }
 
         args.facing.angle = G3D::wrap(angle, 0.f, (float)G3D::twoPi());
@@ -255,8 +279,8 @@ namespace Movement
 
     void MoveSplineInit::SetFall()
     {
-        args.flags.EnableFalling();
-        args.flags.fallingSlow = unit->HasUnitMovementFlag(MOVEMENTFLAG_FALLING_SLOW);
+        args.flags.Falling = true;
+        args.flags.FallingSlow = unit->HasUnitMovementFlag(MOVEMENTFLAG_FALLING_SLOW);
     }
 
     Vector3 TransportPathTransform::operator()(Vector3 input)
@@ -266,5 +290,10 @@ namespace Movement
                 transport->CalculatePassengerOffset(input.x, input.y, input.z);
 
         return input;
+    }
+
+    void MoveSplineInitFacingVisitor::operator()(Position const& point) const
+    {
+        _init.SetFacing(point.GetPositionX(), point.GetPositionY(), point.GetPositionZ());
     }
 }

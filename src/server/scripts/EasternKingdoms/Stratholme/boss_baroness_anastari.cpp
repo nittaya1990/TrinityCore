@@ -43,12 +43,14 @@ enum BaronessAnastariEvents
 
 struct boss_baroness_anastari : public BossAI
 {
-    boss_baroness_anastari(Creature* creature) : BossAI(creature, TYPE_BARONESS) { }
+    boss_baroness_anastari(Creature* creature) : BossAI(creature, BOSS_BARONESS_ANASTARI) { }
 
     ObjectGuid _possessedTargetGuid;
 
     void Reset() override
     {
+        _Reset();
+
         _possessedTargetGuid.Clear();
 
         instance->DoRemoveAurasDueToSpellOnPlayers(SPELL_POSSESS);
@@ -64,13 +66,6 @@ struct boss_baroness_anastari : public BossAI
         events.ScheduleEvent(EVENT_SPELL_BANSHEECURSE, 11s);
         events.ScheduleEvent(EVENT_SPELL_SILENCE, 13s);
         events.ScheduleEvent(EVENT_SPELL_POSSESS, 20s, 30s);
-    }
-
-    void JustDied(Unit* /*killer*/) override
-    {
-        // needed until crystals implemented,
-        // see line 305 instance_stratholme.cpp
-        instance->SetData(TYPE_BARONESS, IN_PROGRESS);
     }
 
     void UpdateAI(uint32 diff) override
@@ -100,7 +95,7 @@ struct boss_baroness_anastari : public BossAI
                     events.Repeat(13s);
                     break;
                 case EVENT_SPELL_POSSESS:
-                    if (Unit* possessTarget = SelectTarget(SELECT_TARGET_RANDOM, 1, 0, true, false))
+                    if (Unit* possessTarget = SelectTarget(SelectTargetMethod::Random, 1, 0, true, false))
                     {
                         DoCast(possessTarget, SPELL_POSSESS, true);
                         DoCast(possessTarget, SPELL_POSSESSED, true);
@@ -132,8 +127,6 @@ struct boss_baroness_anastari : public BossAI
             if (me->HasUnitState(UNIT_STATE_CASTING))
                 return;
         }
-
-        DoMeleeAttackIfReady();
     }
 };
 

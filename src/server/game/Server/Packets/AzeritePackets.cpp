@@ -26,13 +26,6 @@ WorldPacket const* WorldPackets::Azerite::PlayerAzeriteItemGains::Write()
     return &_worldPacket;
 }
 
-WorldPacket const* WorldPackets::Azerite::OpenHeartForge::Write()
-{
-    _worldPacket << ForgeGUID;
-
-    return &_worldPacket;
-}
-
 void WorldPackets::Azerite::AzeriteEssenceUnlockMilestone::Read()
 {
     _worldPacket >> AzeriteItemMilestonePowerID;
@@ -47,7 +40,7 @@ void WorldPackets::Azerite::AzeriteEssenceActivateEssence::Read()
 WorldPacket const* WorldPackets::Azerite::ActivateEssenceFailed::Write()
 {
     _worldPacket.WriteBits(AsUnderlyingType(Reason), 4);
-    _worldPacket.WriteBit(Slot.is_initialized());
+    _worldPacket.WriteBit(Slot.has_value());
     _worldPacket << int32(Arg);
     _worldPacket << int32(AzeriteEssenceID);
     if (Slot)
@@ -63,23 +56,16 @@ void WorldPackets::Azerite::AzeriteEmpoweredItemViewed::Read()
 
 void WorldPackets::Azerite::AzeriteEmpoweredItemSelectPower::Read()
 {
-    _worldPacket >> Tier;
-    _worldPacket >> AzeritePowerID;
     _worldPacket >> ContainerSlot;
     _worldPacket >> Slot;
+    _worldPacket >> Tier;
+    _worldPacket >> AzeritePowerID;
 }
 
 WorldPacket const* WorldPackets::Azerite::PlayerAzeriteItemEquippedStatusChanged::Write()
 {
     _worldPacket.WriteBit(IsHeartEquipped);
     _worldPacket.FlushBits();
-
-    return &_worldPacket;
-}
-
-WorldPacket const* WorldPackets::Azerite::AzeriteRespecNPC::Write()
-{
-    _worldPacket << NpcGUID;
 
     return &_worldPacket;
 }

@@ -16,12 +16,48 @@
  */
 
 #include "PacketUtilities.h"
-#include "Errors.h"
-#include <sstream>
+#include "Hyperlinks.h"
+#include "StringFormat.h"
+#include <utf8.h>
+
+WorldPackets::InvalidStringValueException::InvalidStringValueException(std::string_view value) : ByteBufferInvalidValueException("string", value), _value(value)
+{
+}
+
+WorldPackets::InvalidUtf8ValueException::InvalidUtf8ValueException(std::string_view value) : InvalidStringValueException(value)
+{
+}
+
+WorldPackets::InvalidHyperlinkException::InvalidHyperlinkException(std::string_view value) : InvalidStringValueException(value)
+{
+}
+
+WorldPackets::IllegalHyperlinkException::IllegalHyperlinkException(std::string_view value) : InvalidStringValueException(value)
+{
+}
+
+bool WorldPackets::Strings::Utf8::Validate(std::string_view value)
+{
+    if (!utf8::is_valid(value.begin(), value.end()))
+        throw InvalidUtf8ValueException(value);
+    return true;
+}
+
+bool WorldPackets::Strings::Hyperlinks::Validate(std::string_view value)
+{
+    if (!Trinity::Hyperlinks::CheckAllLinks(value))
+        throw InvalidHyperlinkException(value);
+    return true;
+}
+
+bool WorldPackets::Strings::NoHyperlinks::Validate(std::string_view value)
+{
+    if (value.find('|') != std::string::npos)
+        throw IllegalHyperlinkException(value);
+    return true;
+}
 
 WorldPackets::PacketArrayMaxCapacityException::PacketArrayMaxCapacityException(std::size_t requestedSize, std::size_t sizeLimit)
+    : ByteBufferException(Trinity::StringFormat("Attempted to read more array elements from packet {} than allowed {}", requestedSize, sizeLimit))
 {
-    std::ostringstream builder;
-    builder << "Attempted to read more array elements from packet " << requestedSize << " than allowed " << sizeLimit;
-    message().assign(builder.str());
 }

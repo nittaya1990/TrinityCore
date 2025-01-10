@@ -21,6 +21,7 @@
 #include "MovementGenerator.h"
 #include "PathMovementBase.h"
 #include <deque>
+#include <vector>
 
 class Player;
 struct TaxiPathNodeEntry;
@@ -32,7 +33,8 @@ struct TaxiPathNodeEntry;
 class FlightPathMovementGenerator : public MovementGeneratorMedium<Player, FlightPathMovementGenerator>, public PathMovementBase<Player, std::vector<TaxiPathNodeEntry const*>>
 {
     public:
-        explicit FlightPathMovementGenerator();
+        explicit FlightPathMovementGenerator(Optional<float> speed,
+            Optional<Scripting::v2::ActionResultSetter<MovementStopReason>>&& scriptResult);
 
         MovementGeneratorType GetMovementGeneratorType() const override;
         bool GetResetPosition(Unit* owner, float& x, float& y, float& z) override;
@@ -46,26 +48,30 @@ class FlightPathMovementGenerator : public MovementGeneratorMedium<Player, Fligh
         std::vector<TaxiPathNodeEntry const*> const& GetPath() { return _path; }
         uint32 GetPathAtMapEnd() const;
         bool HasArrived() const { return _currentNode >= _path.size(); }
+        uint32 GetPathId(size_t index) const;
 
-        void LoadPath(Player* owner, uint32 startNode = 0);
+        void LoadPath(Player* owner, uint32 startNode = 0); // called from MotionMaster
         void SetCurrentNodeAfterTeleport();
         void SkipCurrentNode() { ++_currentNode; }
         void DoEventIfAny(Player* owner, TaxiPathNodeEntry const* node, bool departure);
         void InitEndGridInfo();
-        void PreloadEndGrid();
+        void PreloadEndGrid(Player* owner);
+
+        std::string GetDebugInfo() const override;
 
     private:
-        float _endGridX; //! X coord of last node location
-        float _endGridY; //! Y coord of last node location
-        uint32 _endMapId; //! map Id of last node location
-        uint32 _preloadTargetNode; //! node index where preloading starts
+        Optional<float> _speed;
+        float _endGridX; //!< X coord of last node location
+        float _endGridY; //!< Y coord of last node location
+        uint32 _endMapId; //!< map Id of last node location
+        uint32 _preloadTargetNode; //!< node index where preloading starts
 
         struct TaxiNodeChangeInfo
         {
             uint32 PathIndex;
             int64 Cost;
         };
-        std::deque<TaxiNodeChangeInfo> _pointsForPathSwitch; //! node indexes and costs where TaxiPath changes
+        std::deque<TaxiNodeChangeInfo> _pointsForPathSwitch; //!< node indexes and costs where TaxiPath changes
 };
 
 #endif // TRINITY_FLIGHTPATHMOVEMENTGENERATOR_H

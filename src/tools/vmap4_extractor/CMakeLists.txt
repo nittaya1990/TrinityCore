@@ -12,10 +12,6 @@ CollectSourceFiles(
   ${CMAKE_CURRENT_SOURCE_DIR}
   PRIVATE_SOURCES)
 
-if (WIN32)
-  list(APPEND PRIVATE_SOURCES ${sources_windows})
-endif()
-
 add_executable(vmap4extractor ${PRIVATE_SOURCES})
 
 target_link_libraries(vmap4extractor
@@ -35,12 +31,12 @@ target_include_directories(vmap4extractor
     ${CMAKE_CURRENT_BINARY_DIR})
 
 set_target_properties(vmap4extractor
-    PROPERTIES
-      FOLDER
-        "tools")
+  PROPERTIES
+    COMPILE_WARNING_AS_ERROR ${WITH_WARNINGS_AS_ERRORS}
+    FOLDER "tools")
 
-if( UNIX )
+if(UNIX)
   install(TARGETS vmap4extractor DESTINATION bin)
-elseif( WIN32 )
+elseif(WIN32)
   install(TARGETS vmap4extractor DESTINATION "${CMAKE_INSTALL_PREFIX}")
 endif()

@@ -42,7 +42,7 @@ ByteBuffer& operator>>(ByteBuffer& data, WorldPackets::Who::WhoWord& word)
 
 ByteBuffer& operator>>(ByteBuffer& data, Optional<WorldPackets::Who::WhoRequestServerInfo>& serverInfo)
 {
-    serverInfo = boost::in_place();
+    serverInfo.emplace();
 
     data >> serverInfo->FactionGroup;
     data >> serverInfo->Locale;
@@ -88,9 +88,11 @@ ByteBuffer& operator>>(ByteBuffer& data, WorldPackets::Who::WhoRequest& request)
 void WorldPackets::Who::WhoRequestPkt::Read()
 {
     Areas.resize(_worldPacket.ReadBits(4));
+    IsFromAddOn = _worldPacket.ReadBit();
 
     _worldPacket >> Request;
     _worldPacket >> RequestID;
+    _worldPacket >> Origin;
 
     for (size_t i = 0; i < Areas.size(); ++i)
         _worldPacket >> Areas[i];

@@ -15,136 +15,183 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* ScriptData
-SDName: Ghostlands
-SD%Complete: 100
-SDComment:
-SDCategory: Ghostlands
-EndScriptData */
-
-/* ContentData
-npc_ranger_lilatha
-EndContentData */
-
-#include "ScriptMgr.h"
-#include "GameObject.h"
+#include "AreaTrigger.h"
+#include "AreaTriggerAI.h"
+#include "Containers.h"
+#include "Conversation.h"
+#include "ConversationAI.h"
+#include "CreatureAIImpl.h"
+#include "MotionMaster.h"
+#include "ObjectAccessor.h"
 #include "Player.h"
-#include "ScriptedEscortAI.h"
-#include "ScriptedGossip.h"
+#include "ScriptMgr.h"
+#include "ScriptedCreature.h"
 #include "TemporarySummon.h"
-#include "WorldSession.h"
 
-/*######
-
-## npc_ranger_lilatha
-######*/
-
-enum RangerLilatha
+enum ToGhostlandsData
 {
-    SAY_START                           = 0,
-    SAY_PROGRESS1                       = 1,
-    SAY_PROGRESS2                       = 2,
-    SAY_PROGRESS3                       = 3,
-    SAY_END1                            = 4,
-    SAY_END2                            = 5,
-    SAY_CAPTAIN_ANSWER                  = 0,
-    QUEST_ESCAPE_FROM_THE_CATACOMBS     = 9212,
-    GO_CAGE                             = 181152,
-    NPC_CAPTAIN_HELIOS                  = 16220,
-    NPC_MUMMIFIED_HEADHUNTER            = 16342,
-    NPC_SHADOWPINE_ORACLE               = 16343
+    NPC_SUMMONED_HIGH_ELF_RANGER        = 130919,
+
+    QUEST_TO_GHOSTLANDS                 = 49787,
+
+    CONVO_SANCTUM_OF_THE_MOON           = 6467,
+    CONVO_SANCTUM_OF_THE_MOON_FOLLOWUP  = 6634,
+    CONVO_ANDILIEN_ESTATE               = 6469,
+    CONVO_ANDILIEN_ESTATE_FOLLOWUP      = 6479,
+    CONVO_DAWNSPAIR_SPIRE               = 6470,
+    CONVO_DAWNSPAIR_SPIRE_UP            = 6637,
+    CONVO_DAWNSPAIR_SPIRE_FOLLOWUP      = 6471,
+
+    CONVO_ACTOR_HIGH_ELF_RANGER         = 61831
 };
 
-class npc_ranger_lilatha : public CreatureScript
+// 6468 - Conversation
+class conversation_high_elf_ranger_to_ghostlands : public ConversationAI
 {
 public:
-    npc_ranger_lilatha() : CreatureScript("npc_ranger_lilatha") { }
+    using ConversationAI::ConversationAI;
 
-    struct npc_ranger_lilathaAI : public EscortAI
+    void OnCreate(Unit* creator) override
     {
-        npc_ranger_lilathaAI(Creature* creature) : EscortAI(creature) { }
+        Creature* highElfRanger = creator->FindNearestCreatureWithOptions(20.0f, { .CreatureId = NPC_SUMMONED_HIGH_ELF_RANGER, .IgnorePhases = true, .OwnerGuid = creator->GetGUID() });
+        if (!highElfRanger)
+            return;
 
-        void WaypointReached(uint32 waypointId, uint32 /*pathId*/) override
+        conversation->AddActor(CONVO_ACTOR_HIGH_ELF_RANGER, 0, highElfRanger->GetGUID());
+        conversation->Start();
+    }
+};
+
+// 6478 - Conversation
+// 6635 - Conversation
+template<uint32 ConversationId>
+class conversation_ghostlands_start_convo_on_end : public ConversationAI
+{
+public:
+    using ConversationAI::ConversationAI;
+
+    void OnStart() override
+    {
+        conversation->m_Events.AddEvent([conversation = conversation]()
         {
-            Player* player = GetPlayerForEscort();
+            Player* player = ObjectAccessor::GetPlayer(*conversation, conversation->GetPrivateObjectOwner());
             if (!player)
                 return;
 
-            switch (waypointId)
-            {
-                case 0:
-                    me->SetStandState(UNIT_STAND_STATE_STAND);
-                    if (GameObject* Cage = me->FindNearestGameObject(GO_CAGE, 20))
-                        Cage->SetGoState(GO_STATE_ACTIVE);
-                    Talk(SAY_START, player);
-                    break;
-                case 5:
-                    Talk(SAY_PROGRESS1, player);
-                    break;
-                case 11:
-                    Talk(SAY_PROGRESS2, player);
-                    me->SetFacingTo(4.762841f);
-                    break;
-                case 18:
-                    {
-                        Talk(SAY_PROGRESS3, player);
-                        TempSummon* Summ1 = me->SummonCreature(NPC_MUMMIFIED_HEADHUNTER, 7627.083984f, -7532.538086f, 152.128616f, 1.082733f, TEMPSUMMON_DEAD_DESPAWN, 0);
-                        TempSummon* Summ2 = me->SummonCreature(NPC_SHADOWPINE_ORACLE, 7620.432129f, -7532.550293f, 152.454865f, 0.827478f, TEMPSUMMON_DEAD_DESPAWN, 0);
-                        if (Summ1 && Summ2)
-                        {
-                            Summ1->Attack(me, true);
-                            Summ2->Attack(player, true);
-                        }
-                        AttackStart(Summ1);
-                    }
-                    break;
-                case 19:
-                    me->SetWalk(false);
-                    break;
-                case 25:
-                    me->SetWalk(true);
-                    break;
-                case 30:
-                    player->GroupEventHappens(QUEST_ESCAPE_FROM_THE_CATACOMBS, me);
-                    break;
-                case 32:
-                    me->SetFacingTo(2.978281f);
-                    Talk(SAY_END1, player);
-                    break;
-                case 33:
-                    me->SetFacingTo(5.858011f);
-                    Talk(SAY_END2, player);
-                    Creature* CaptainHelios = me->FindNearestCreature(NPC_CAPTAIN_HELIOS, 50);
-                    if (CaptainHelios)
-                        CaptainHelios->AI()->Talk(SAY_CAPTAIN_ANSWER, player);
-                    break;
-            }
-        }
+            Conversation::CreateConversation(ConversationId, player, *player, player->GetGUID(), nullptr, true);
+        }, conversation->GetLastLineEndTime(conversation->GetPrivateObjectOwnerLocale()));
+    }
+};
 
-        void Reset() override
-        {
-            if (GameObject* Cage = me->FindNearestGameObject(GO_CAGE, 20))
-                Cage->SetGoState(GO_STATE_READY);
-        }
+// 6636 - Conversation
+class conversation_dawnspair_spire_to_ghostlands : public ConversationAI
+{
+public:
+    using ConversationAI::ConversationAI;
 
-        void QuestAccept(Player* player, Quest const* quest) override
-        {
-            if (quest->GetQuestId() == QUEST_ESCAPE_FROM_THE_CATACOMBS)
-            {
-                me->SetFaction(FACTION_ESCORTEE_N_NEUTRAL_PASSIVE);
-                Start(true, false, player->GetGUID());
-            }
-        }
+    static constexpr Position AlleriaMoveToBookPosition = { 7835.05f, -7913.11f, 308.2204f };
+
+    enum DawnspairSpireConvoData
+    {
+        POINT_ALLERIA_MOVE_TO_BOOK = 1
     };
 
-    CreatureAI* GetAI(Creature* creature) const override
+    void OnCreate(Unit* creator) override
     {
-        return new npc_ranger_lilathaAI(creature);
+        Creature* highElfRanger = creator->FindNearestCreatureWithOptions(20.0f, { .CreatureId = NPC_SUMMONED_HIGH_ELF_RANGER, .IgnorePhases = true, .OwnerGuid = creator->GetGUID() });
+        if (!highElfRanger)
+            return;
+
+        TempSummon* alleriaClone = highElfRanger->SummonPersonalClone(highElfRanger->GetPosition(), TEMPSUMMON_MANUAL_DESPAWN, 0s, 0, 0, creator->ToPlayer()); // despawn on map change, quest remove, logout
+        if (!alleriaClone)
+            return;
+
+        alleriaClone->GetMotionMaster()->MovePoint(POINT_ALLERIA_MOVE_TO_BOOK, AlleriaMoveToBookPosition, true, {}, {}, MovementWalkRunSpeedSelectionMode::ForceWalk);
     }
 
+    void OnStart() override
+    {
+        conversation->m_Events.AddEvent([conversation = conversation]()
+        {
+            Player* player = ObjectAccessor::GetPlayer(*conversation, conversation->GetPrivateObjectOwner());
+            if (!player)
+                return;
+
+            Conversation::CreateConversation(CONVO_DAWNSPAIR_SPIRE_FOLLOWUP, player, *player, player->GetGUID(), nullptr, true);
+        }, conversation->GetLastLineEndTime(conversation->GetPrivateObjectOwnerLocale()));
+    }
+};
+
+// 6471 - Conversation
+class conversation_dawnspair_spire_followup_to_ghostlands : public ConversationAI
+{
+public:
+    using ConversationAI::ConversationAI;
+
+    static constexpr Position AlleriaOpenRiftPosition = { 7832.54f, -7913.34f, 308.2204f };
+
+    enum DawnspairSpireFollowupConvoData
+    {
+        POINT_ALLERIA_OPEN_PORTAL = 2
+    };
+
+    void OnCreate(Unit* creator) override
+    {
+        Creature* alleriaClone = creator->FindNearestCreatureWithOptions(20.0f, { .CreatureId = NPC_SUMMONED_HIGH_ELF_RANGER, .IgnorePhases = true, .PrivateObjectOwnerGuid = creator->GetGUID() });
+        if (!alleriaClone)
+            return;
+
+        conversation->AddActor(CONVO_ACTOR_HIGH_ELF_RANGER, 0, alleriaClone->GetGUID());
+        conversation->Start();
+    }
+
+    void OnStart() override
+    {
+        conversation->m_Events.AddEvent([conversation = conversation]()
+        {
+            Creature* alleriaClone = conversation->GetActorCreature(0);
+            if (!alleriaClone)
+                return;
+
+            alleriaClone->GetMotionMaster()->MovePoint(POINT_ALLERIA_OPEN_PORTAL, AlleriaOpenRiftPosition, true, {}, {}, MovementWalkRunSpeedSelectionMode::ForceWalk);
+
+        }, conversation->GetLastLineEndTime(conversation->GetPrivateObjectOwnerLocale()));
+    }
+};
+
+// 100 - Ghostlands - Sanctum of the Moon
+// 101 - Ghostlands - Andilien Estate
+// 102 - Ghostlands - Dawnspair Spire
+// 103 - Ghostlands - Dawnspair Spire second floor
+template<uint32 QuestId, uint32 ConversationId>
+struct at_ghostlands_conversation_to_ghostlands : AreaTriggerAI
+{
+    at_ghostlands_conversation_to_ghostlands(AreaTrigger* areatrigger) : AreaTriggerAI(areatrigger) {}
+
+    void OnUnitEnter(Unit* unit) override
+    {
+        Player* player = unit->ToPlayer();
+        if (!player || player->GetQuestStatus(QuestId) != QUEST_STATUS_INCOMPLETE)
+            return;
+
+        Conversation::CreateConversation(ConversationId, player, *player, player->GetGUID(), nullptr, true);
+    }
 };
 
 void AddSC_ghostlands()
 {
-    new npc_ranger_lilatha();
+    // Conversation
+    RegisterConversationAI(conversation_high_elf_ranger_to_ghostlands);
+    RegisterConversationAI(conversation_dawnspair_spire_to_ghostlands);
+    RegisterConversationAI(conversation_dawnspair_spire_followup_to_ghostlands);
+
+    // Conversation Template
+    new GenericConversationScript<conversation_ghostlands_start_convo_on_end<CONVO_SANCTUM_OF_THE_MOON_FOLLOWUP>>("conversation_sanctum_of_the_moon_to_ghostlands");
+    new GenericConversationScript<conversation_ghostlands_start_convo_on_end<CONVO_ANDILIEN_ESTATE_FOLLOWUP>>("conversation_andilien_estate_to_ghostlands");
+
+    // Areatrigger Template
+    new GenericAreaTriggerEntityScript<at_ghostlands_conversation_to_ghostlands<QUEST_TO_GHOSTLANDS, CONVO_SANCTUM_OF_THE_MOON>>("at_ghostlands_sanctum_of_the_moon_conversation");
+    new GenericAreaTriggerEntityScript<at_ghostlands_conversation_to_ghostlands<QUEST_TO_GHOSTLANDS, CONVO_ANDILIEN_ESTATE>>("at_ghostlands_andilien_estate_conversation");
+    new GenericAreaTriggerEntityScript<at_ghostlands_conversation_to_ghostlands<QUEST_TO_GHOSTLANDS, CONVO_DAWNSPAIR_SPIRE>>("at_ghostlands_dawnspair_spire_conversation");
+    new GenericAreaTriggerEntityScript<at_ghostlands_conversation_to_ghostlands<QUEST_TO_GHOSTLANDS, CONVO_DAWNSPAIR_SPIRE_UP>>("at_ghostlands_dawnspair_spire_second_floor_conversation");
 }

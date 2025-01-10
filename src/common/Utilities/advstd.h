@@ -18,150 +18,71 @@
 #ifndef TRINITY_ADVSTD_H
 #define TRINITY_ADVSTD_H
 
-#include <cstddef>
-#include <initializer_list>
-#include <type_traits>
-#include <utility>
+#include <version>
+
+#ifdef __cpp_lib_bit_cast
+#include <bit>
+#else
+#include <cstring> // for memcpy
+#endif
+#include <compare>
 
 // this namespace holds implementations of upcoming stdlib features that our c++ version doesn't have yet
 namespace advstd
 {
-    // C++17 std::apply (constrained to only function pointers, not all callable)
-    template <typename... Ts>
-    using apply_tuple_type = std::tuple<std::remove_cv_t<std::remove_reference_t<Ts>>...>;
-    template <typename R, typename... Ts, std::size_t... I>
-    R apply_impl(R(*func)(Ts...), apply_tuple_type<Ts...>&& args, std::index_sequence<I...>)
+// libc++ is missing these two
+[[nodiscard]] constexpr bool is_eq(std::partial_ordering cmp) noexcept { return cmp == 0; }
+[[nodiscard]] constexpr bool is_neq(std::partial_ordering cmp) noexcept { return cmp != 0; }
+
+#ifdef __cpp_lib_bit_cast
+using std::bit_cast;
+#else
+// libstdc++ v10 is missing this
+template <typename To, typename From,
+    std::enable_if_t<std::conjunction_v<
+        std::bool_constant<sizeof(To) == sizeof(From)>,
+        std::is_trivially_copyable<To>,
+        std::is_trivially_copyable<From>>, int> = 0>
+[[nodiscard]] constexpr To bit_cast(From const& from) noexcept
+{
+    To to;
+    std::memcpy(&to, &from, sizeof(To));
+    return to;
+}
+#endif
+}
+
+// std::ranges::contains
+#include <algorithm>
+#ifndef __cpp_lib_ranges_contains
+#include <functional> // for std::ranges::equal_to, std::identity
+#include <iterator> // for std::input_iterator, std::sentinel_for, std::projected
+#endif
+
+namespace advstd::ranges
+{
+#ifndef __cpp_lib_ranges_contains
+struct Contains
+{
+    template<std::input_iterator I, std::sentinel_for<I> S, class T, class Proj = std::identity>
+    requires std::indirect_binary_predicate<std::ranges::equal_to, std::projected<I, Proj>, T const*>
+    [[nodiscard]] inline constexpr bool operator()(I first, S last, T const& value, Proj proj = {}) const
     {
-        return func(std::get<I>(std::forward<apply_tuple_type<Ts...>>(args))...);
-    }
-    template <typename R, typename... Ts>
-    R apply(R(*func)(Ts...), apply_tuple_type<Ts...>&& args)
-    {
-        return apply_impl(func, std::forward<apply_tuple_type<Ts...>>(args), std::index_sequence_for<Ts...>{});
-    }
-
-#define forward_1v(stdname, type) template <typename T> constexpr type stdname ## _v = std::stdname<T>::value
-#define forward_2v(stdname, type) template <typename U, typename V> constexpr type stdname ## _v = std::stdname<U,V>::value
-
-    // C++17 std::is_same_v
-    forward_2v(is_same, bool);
-
-    // C++17 std::is_integral_v
-    forward_1v(is_integral, bool);
-
-    // C++17 std::is_assignable_v
-    forward_2v(is_assignable, bool);
-
-    // C++17 std::is_signed_v
-    forward_1v(is_signed, bool);
-
-    // C++17 std::is_unsigned_v
-    forward_1v(is_unsigned, bool);
-
-    // C++17 std::is_base_of_v
-    forward_2v(is_base_of, bool);
-
-    // C++17 std::is_floating_point_v
-    forward_1v(is_floating_point, bool);
-
-    // C++17 std::is_pointer_v
-    forward_1v(is_pointer, bool);
-
-    // C++17 std::is_reference_v
-    forward_1v(is_reference, bool);
-
-    // C++17 std::tuple_size_v
-    forward_1v(tuple_size, size_t);
-
-    // C++17 std::is_enum_v
-    forward_1v(is_enum, bool);
-
-    // C++17 std::is_arithmetic_v
-    forward_1v(is_arithmetic, bool);
-
-    // C++17 std::is_move_assignable_v
-    forward_1v(is_move_assignable, bool);
-
-#undef forward_1v
-#undef forward_2v
-
-    // C++17 std::size
-    template <typename C>
-    constexpr auto size(const C& c) { return c.size(); }
-
-    template <typename T, std::size_t N>
-    constexpr std::size_t size(const T(&)[N]) noexcept { return N; }
-
-    // C++17 std::data
-    template <typename C>
-    constexpr auto data(C& c) { return c.data(); }
-
-    template <typename C>
-    constexpr auto data(C const& c) { return c.data(); }
-
-    template <typename T, std::size_t N>
-    constexpr T* data(T(&a)[N]) noexcept { return a; }
-
-    template <typename T, std::size_t N>
-    constexpr T const* data(const T(&a)[N]) noexcept { return a; }
-
-    template <typename T>
-    constexpr T const* data(std::initializer_list<T> l) noexcept { return l.begin(); }
-
-    // C++17 std::gcd
-    template <typename T1, typename T2>
-    constexpr std::enable_if_t<advstd::is_unsigned_v<T1> && advstd::is_unsigned_v<T2>, std::common_type_t<T1, T2>> gcd(T1 _m, T2 _n)
-    {
-        using T = std::common_type_t<T1, T2>;
-        T n=_n, m=_m;
-        while (n)
-        {
-            T o = m;
-            m = n;
-            n = o%n;
-        }
-        return m;
+        return std::ranges::find(std::move(first), last, value, proj) != last;
     }
 
-    // C++17 std::lcm
-    template <typename T1, typename T2>
-    constexpr std::enable_if_t<advstd::is_unsigned_v<T1> && advstd::is_unsigned_v<T2>, std::common_type_t<T1, T2>> lcm(T1 m, T2 n)
+    template<std::ranges::input_range R, class T, class Proj = std::identity>
+    requires std::indirect_binary_predicate<std::ranges::equal_to, std::projected<std::ranges::iterator_t<R>, Proj>, T const*>
+    [[nodiscard]] inline constexpr bool operator()(R&& r, T const& value, Proj proj = {}) const
     {
-        return (m/gcd(m, n))*n;
+        auto first = std::ranges::begin(r);
+        auto last = std::ranges::end(r);
+        return std::ranges::find(std::move(first), last, value, proj) != last;
     }
-
-    // C++20 std::remove_cvref_t
-    template <class T>
-    using remove_cvref_t = std::remove_cv_t<std::remove_reference_t<T>>;
-
-    template<typename B>
-    struct negation : std::integral_constant<bool, !bool(B::value)> { };
-
-    template <typename...>
-    struct conjunction : std::true_type { };
-    template <typename B1>
-    struct conjunction<B1> : B1 { };
-    template <typename B1, class... Bn>
-    struct conjunction<B1, Bn...> : std::conditional_t<bool(B1::value), conjunction<Bn...>, B1> { };
-
-    template <typename...>
-    struct disjunction : std::false_type { };
-    template <typename B1>
-    struct disjunction<B1> : B1 { };
-    template <typename B1, class... Bn>
-    struct disjunction<B1, Bn...> : std::conditional_t<bool(B1::value), B1, disjunction<Bn...>>  { };
-
-    template <class T>
-    constexpr T const& clamp(T const& val, T const& lo, T const& hi)
-    {
-        if (hi < val)
-            return hi;
-
-        if (val < lo)
-            return lo;
-
-        return val;
-    }
+} inline constexpr contains;
+#else
+using std::ranges::contains;
+#endif
 }
 
 #endif

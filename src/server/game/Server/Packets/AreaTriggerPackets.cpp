@@ -33,8 +33,8 @@ ByteBuffer& operator<<(ByteBuffer& data, WorldPackets::AreaTrigger::AreaTriggerS
 
 ByteBuffer& operator<<(ByteBuffer& data, AreaTriggerOrbitInfo const& areaTriggerCircularMovement)
 {
-    data.WriteBit(areaTriggerCircularMovement.PathTarget.is_initialized());
-    data.WriteBit(areaTriggerCircularMovement.Center.is_initialized());
+    data.WriteBit(areaTriggerCircularMovement.PathTarget.has_value());
+    data.WriteBit(areaTriggerCircularMovement.Center.has_value());
     data.WriteBit(areaTriggerCircularMovement.CounterClockwise);
     data.WriteBit(areaTriggerCircularMovement.CanLoop);
 
@@ -82,10 +82,11 @@ WorldPacket const* WorldPackets::AreaTrigger::AreaTriggerDenied::Write()
 WorldPacket const* WorldPackets::AreaTrigger::AreaTriggerRePath::Write()
 {
     _worldPacket << TriggerGUID;
+    _worldPacket << Unused_1100;
 
-    _worldPacket.WriteBit(AreaTriggerSpline.is_initialized());
-    _worldPacket.WriteBit(AreaTriggerOrbit.is_initialized());
-    _worldPacket.WriteBit(AreaTriggerMovementScript.is_initialized());
+    _worldPacket.WriteBit(AreaTriggerSpline.has_value());
+    _worldPacket.WriteBit(AreaTriggerOrbit.has_value());
+    _worldPacket.WriteBit(AreaTriggerMovementScript.has_value());
     _worldPacket.FlushBits();
 
     if (AreaTriggerSpline)
@@ -96,6 +97,14 @@ WorldPacket const* WorldPackets::AreaTrigger::AreaTriggerRePath::Write()
 
     if (AreaTriggerOrbit)
         _worldPacket << *AreaTriggerOrbit;
+
+    return &_worldPacket;
+}
+
+WorldPacket const* WorldPackets::AreaTrigger::AreaTriggerPlaySpellVisual::Write()
+{
+    _worldPacket << AreaTriggerGUID;
+    _worldPacket << uint32(SpellVisualID);
 
     return &_worldPacket;
 }

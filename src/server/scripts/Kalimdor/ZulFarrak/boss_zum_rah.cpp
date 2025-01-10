@@ -21,7 +21,6 @@ Category: Tanaris, ZulFarrak
 */
 
 #include "ScriptMgr.h"
-#include "InstanceScript.h"
 #include "ScriptedCreature.h"
 #include "zulfarrak.h"
 
@@ -55,7 +54,7 @@ public:
 
     struct boss_zum_rahAI : public BossAI
     {
-        boss_zum_rahAI(Creature* creature) : BossAI(creature, DATA_ZUM_RAH)
+        boss_zum_rahAI(Creature* creature) : BossAI(creature, BOSS_WITCH_DOCTOR_ZUM_RAH)
         {
             Initialize();
         }
@@ -69,20 +68,17 @@ public:
 
         void Reset() override
         {
+            _Reset();
             me->SetFaction(FACTION_FRIENDLY); // areatrigger sets faction to enemy
             Initialize();
         }
 
-        void JustEngagedWith(Unit* /*who*/) override
+        void JustEngagedWith(Unit* who) override
         {
+            _JustEngagedWith(who);
             Talk(SAY_SANCT_INVADE);
-            events.ScheduleEvent(EVENT_SHADOW_BOLT, 1000);
-            events.ScheduleEvent(EVENT_SHADOWBOLT_VOLLEY, 10000);
-        }
-
-        void JustDied(Unit* /*killer*/) override
-        {
-            instance->SetData(DATA_ZUM_RAH, DONE);
+            events.ScheduleEvent(EVENT_SHADOW_BOLT, 1s);
+            events.ScheduleEvent(EVENT_SHADOWBOLT_VOLLEY, 10s);
         }
 
         void KilledUnit(Unit* /*victim*/) override
@@ -103,7 +99,7 @@ public:
                 {
                     case EVENT_SHADOW_BOLT:
                         DoCastVictim(SPELL_SHADOW_BOLT);
-                        events.ScheduleEvent(EVENT_SHADOW_BOLT, 4000);
+                        events.ScheduleEvent(EVENT_SHADOW_BOLT, 4s);
                         break;
                     case EVENT_WARD_OF_ZUM_RAH:
                         DoCast(me,SPELL_WARD_OF_ZUM_RAH);
@@ -112,9 +108,9 @@ public:
                         DoCast(me,SPELL_HEALING_WAVE);
                         break;
                     case EVENT_SHADOWBOLT_VOLLEY:
-                        if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                        if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                             DoCast(target, SPELL_SHADOWBOLT_VOLLEY);
-                        events.ScheduleEvent(EVENT_SHADOWBOLT_VOLLEY, 9000);
+                        events.ScheduleEvent(EVENT_SHADOWBOLT_VOLLEY, 9s);
                         break;
                     default:
                         break;
@@ -125,23 +121,21 @@ public:
             {
                 _ward80 = true;
                 Talk(SAY_WARD);
-                events.ScheduleEvent(EVENT_WARD_OF_ZUM_RAH, 1000);
+                events.ScheduleEvent(EVENT_WARD_OF_ZUM_RAH, 1s);
             }
 
             if (!_ward40 && HealthBelowPct(40))
             {
                 _ward40 = true;
                 Talk(SAY_WARD);
-                events.ScheduleEvent(EVENT_WARD_OF_ZUM_RAH, 1000);
+                events.ScheduleEvent(EVENT_WARD_OF_ZUM_RAH, 1s);
             }
 
             if (!_heal30 && HealthBelowPct(30))
             {
                 _heal30 = true;
-                events.ScheduleEvent(EVENT_HEALING_WAVE, 3000);
+                events.ScheduleEvent(EVENT_HEALING_WAVE, 3s);
             }
-
-            DoMeleeAttackIfReady();
         }
 
         private:

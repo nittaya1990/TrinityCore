@@ -15,7 +15,7 @@
  * with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "ScriptMgr.h"
+#include "violet_hold.h"
 #include "Creature.h"
 #include "CreatureAI.h"
 #include "GameObject.h"
@@ -23,11 +23,10 @@
 #include "Map.h"
 #include "MotionMaster.h"
 #include "Player.h"
+#include "ScriptMgr.h"
 #include "TaskScheduler.h"
 #include "TemporarySummon.h"
-#include "violet_hold.h"
-#include "WorldStatePackets.h"
-#include <sstream>
+#include "WaypointDefines.h"
 
 /*
  * TODO:
@@ -71,70 +70,94 @@ Position const PortalIntroPositions[PortalIntroPositionsSize] = // sniff
 
 uint32 const EncouterPortalsCount = PortalPositionsSize + PortalElitePositionsSize;
 
-uint32 const MoraggPathSize = 3;
-Position const MoraggPath[MoraggPathSize] = // sniff
+WaypointPath const MoraggPath = // sniff
 {
-    { 1893.895f, 728.1261f, 47.75016f },
-    { 1892.997f, 738.4987f, 47.66684f },
-    { 1889.76f,  758.1089f, 47.66684f }
+    POINT_INTRO,
+    {
+        { 0, 1893.895f, 728.1261f, 47.75016f },
+        { 1, 1892.997f, 738.4987f, 47.66684f },
+        { 2, 1889.76f,  758.1089f, 47.66684f }
+    },
+    WaypointMoveType::Walk
 };
 
-uint32 const ErekemPathSize = 3;
-Position const ErekemPath[ErekemPathSize] = // sniff
+WaypointPath const ErekemPath = // sniff
 {
-    { 1871.456f, 871.0361f, 43.41524f },
-    { 1874.948f, 859.5452f, 43.33349f },
-    { 1877.245f, 851.967f,  43.3335f  }
+    POINT_INTRO,
+    {
+        { 0, 1871.456f, 871.0361f, 43.41524f },
+        { 1, 1874.948f, 859.5452f, 43.33349f },
+        { 2, 1877.245f, 851.967f,  43.3335f, 4.921828f }
+    },
+    WaypointMoveType::Walk
 };
 
-uint32 const ErekemGuardLeftPathSize = 3;
-Position const ErekemGuardLeftPath[ErekemGuardLeftPathSize] = // sniff
+WaypointPath const ErekemGuardLeftPath = // sniff
 {
-    { 1853.752f, 862.4528f, 43.41614f },
-    { 1866.931f, 854.577f,  43.3335f  },
-    { 1872.973f, 850.7875f, 43.3335f  }
+    POINT_INTRO,
+    {
+        { 0, 1853.752f, 862.4528f, 43.41614f },
+        { 1, 1866.931f, 854.577f,  43.3335f  },
+        { 2, 1872.973f, 850.7875f, 43.3335f  }
+    },
+    WaypointMoveType::Walk
 };
 
-uint32 const ErekemGuardRightPathSize = 3;
-Position const ErekemGuardRightPath[ErekemGuardRightPathSize] = // sniff
+WaypointPath const ErekemGuardRightPath = // sniff
 {
-    { 1892.418f, 872.2831f, 43.41563f },
-    { 1885.639f, 859.0245f, 43.3335f  },
-    { 1882.432f, 852.2423f, 43.3335f  }
+    POINT_INTRO,
+    {
+        { 0, 1892.418f, 872.2831f, 43.41563f },
+        { 1, 1885.639f, 859.0245f, 43.3335f  },
+        { 2, 1882.432f, 852.2423f, 43.3335f  }
+    },
+    WaypointMoveType::Walk
 };
 
-uint32 const IchoronPathSize = 5;
-Position const IchoronPath[IchoronPathSize] = // sniff
+WaypointPath const IchoronPath = // sniff
 {
-    { 1942.041f, 749.5228f, 30.95229f },
-    { 1930.571f, 762.9065f, 31.98814f },
-    { 1923.657f, 770.6718f, 34.07256f },
-    { 1910.631f, 784.4096f, 37.09015f },
-    { 1906.595f, 788.3828f, 37.99429f }
+    POINT_INTRO,
+    {
+        { 0, 1942.041f, 749.5228f, 30.95229f },
+        { 1, 1930.571f, 762.9065f, 31.98814f },
+        { 2, 1923.657f, 770.6718f, 34.07256f },
+        { 3, 1910.631f, 784.4096f, 37.09015f },
+        { 4, 1906.595f, 788.3828f, 37.99429f }
+    },
+    WaypointMoveType::Walk
 };
 
-uint32 const LavanthorPathSize = 3;
-Position const LavanthorPath[LavanthorPathSize] = // sniff
+WaypointPath const LavanthorPath = // sniff
 {
-    { 1844.557f, 748.7083f, 38.74205f },
-    { 1854.618f, 761.5295f, 38.65631f },
-    { 1862.17f,  773.2255f, 38.74879f }
+    POINT_INTRO,
+    {
+        { 0, 1844.557f, 748.7083f, 38.74205f },
+        { 1, 1854.618f, 761.5295f, 38.65631f },
+        { 2, 1862.17f,  773.2255f, 38.74879f }
+    },
+    WaypointMoveType::Walk
 };
 
-uint32 const XevozzPathSize = 3;
-Position const XevozzPath[XevozzPathSize] = // sniff
+WaypointPath const XevozzPath = // sniff
 {
-    { 1908.417f, 845.8502f, 38.71947f },
-    { 1905.557f, 841.3157f, 38.65529f },
-    { 1899.453f, 832.533f,  38.70752f }
+    POINT_INTRO,
+    {
+        { 0, 1908.417f, 845.8502f, 38.71947f },
+        { 1, 1905.557f, 841.3157f, 38.65529f },
+        { 2, 1899.453f, 832.533f,  38.70752f }
+    },
+    WaypointMoveType::Walk
 };
 
-uint32 const ZuramatPathSize = 3;
-Position const ZuramatPath[ZuramatPathSize] = // sniff
+WaypointPath const ZuramatPath = // sniff
 {
-    { 1934.151f, 860.9463f, 47.29499f },
-    { 1927.085f, 852.1342f, 47.19214f },
-    { 1923.226f, 847.3297f, 47.15541f }
+    POINT_INTRO,
+    {
+        { 0, 1934.151f, 860.9463f, 47.29499f },
+        { 1, 1927.085f, 852.1342f, 47.19214f },
+        { 2, 1923.226f, 847.3297f, 47.15541f }
+    },
+    WaypointMoveType::Walk
 };
 
 enum Yells
@@ -191,6 +214,13 @@ MinionData const minionData[] =
     { 0,                0           } // END
 };
 
+DungeonEncounterData const encounters[] =
+{
+    { DATA_1ST_BOSS, {{ 2019 }} },
+    { DATA_2ND_BOSS, {{ 2018 }} },
+    { DATA_CYANIGOSA, {{ 2020 }} }
+};
+
 class instance_violet_hold : public InstanceMapScript
 {
     public:
@@ -198,15 +228,15 @@ class instance_violet_hold : public InstanceMapScript
 
         struct instance_violet_hold_InstanceMapScript : public InstanceScript
         {
-            instance_violet_hold_InstanceMapScript(InstanceMap* map) : InstanceScript(map)
+            instance_violet_hold_InstanceMapScript(InstanceMap* map) : InstanceScript(map),
+                FirstBossId(*this, "FirstBossId", 0),
+                SecondBossId(*this, "SecondBossId", 0)
             {
                 SetHeaders(DataHeader);
                 SetBossNumber(EncounterCount);
                 LoadObjectData(creatureData, gameObjectData);
                 LoadMinionData(minionData);
-
-                FirstBossId         = 0;
-                SecondBossId        = 0;
+                LoadDungeonEncounterData(encounters);
 
                 DoorIntegrity       = 100;
                 WaveCount           = 0;
@@ -293,13 +323,6 @@ class instance_violet_hold : public InstanceMapScript
                 }
             }
 
-            void FillInitialWorldStates(WorldPackets::WorldState::InitWorldStates& data) override
-            {
-                data.Worldstates.emplace_back(uint32(WORLD_STATE_VH_SHOW), uint32(EventState == IN_PROGRESS ? 1 : 0));
-                data.Worldstates.emplace_back(uint32(WORLD_STATE_VH_PRISON_STATE), uint32(DoorIntegrity));
-                data.Worldstates.emplace_back(uint32(WORLD_STATE_VH_WAVE_COUNT), uint32(WaveCount));
-            }
-
             bool CheckRequiredBosses(uint32 bossId, Player const* player = nullptr) const override
             {
                 if (_SkipCheckRequiredBosses(player))
@@ -335,14 +358,6 @@ class instance_violet_hold : public InstanceMapScript
 
                 switch (type)
                 {
-                    case DATA_1ST_BOSS:
-                        if (state == DONE)
-                            UpdateEncounterStateForKilledCreature(NPC_EREKEM, nullptr);
-                        break;
-                    case DATA_2ND_BOSS:
-                        if (state == DONE)
-                            UpdateEncounterStateForKilledCreature(NPC_MORAGG, nullptr);
-                        break;
                     case DATA_CYANIGOSA:
                         if (state == DONE)
                             SetData(DATA_MAIN_EVENT_STATE, DONE);
@@ -408,11 +423,20 @@ class instance_violet_hold : public InstanceMapScript
                             DoUpdateWorldState(WORLD_STATE_VH_SHOW, 1);
 
                             WaveCount = 1;
-                            Scheduler.Async(std::bind(&instance_violet_hold_InstanceMapScript::AddWave, this));
+                            Scheduler.Async([this]
+                            {
+                                AddWave();
+                            });
 
                             for (uint8 i = 0; i < ActivationCrystalCount; ++i)
                                 if (GameObject* crystal = instance->GetGameObject(ActivationCrystalGUIDs[i]))
                                     crystal->RemoveFlag(GO_FLAG_NOT_SELECTABLE);
+
+                            Scheduler.Schedule(Seconds(3), [this](TaskContext task)
+                            {
+                                CheckEventState();
+                                task.Repeat(Seconds(3));
+                            });
                         }
                         else if (data == NOT_STARTED)
                         {
@@ -428,7 +452,7 @@ class instance_violet_hold : public InstanceMapScript
 
                             for (uint8 i = 0; i < ActivationCrystalCount; ++i)
                                 if (GameObject* crystal = instance->GetGameObject(ActivationCrystalGUIDs[i]))
-                                    crystal->AddFlag(GO_FLAG_NOT_SELECTABLE);
+                                    crystal->SetFlag(GO_FLAG_NOT_SELECTABLE);
                         }
                         else if (data == DONE)
                         {
@@ -442,7 +466,7 @@ class instance_violet_hold : public InstanceMapScript
 
                             for (uint8 i = 0; i < ActivationCrystalCount; ++i)
                                 if (GameObject* crystal = instance->GetGameObject(ActivationCrystalGUIDs[i]))
-                                    crystal->AddFlag(GO_FLAG_NOT_SELECTABLE);
+                                    crystal->SetFlag(GO_FLAG_NOT_SELECTABLE);
 
                             if (Creature* sinclari = GetCreature(DATA_SINCLARI))
                                 sinclari->AI()->DoAction(ACTION_SINCLARI_OUTRO);
@@ -554,7 +578,7 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(3), [this](TaskContext task)
                             {
                                 if (Creature* moragg = GetCreature(DATA_MORAGG))
-                                    moragg->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, MoraggPath, MoraggPathSize, true);
+                                    moragg->GetMotionMaster()->MovePath(MoraggPath, false);
 
                                 task.Schedule(Seconds(8), [this](TaskContext /*task*/)
                                 {
@@ -576,12 +600,12 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(5), [this](TaskContext task)
                             {
                                 if (Creature* erekem = GetCreature(DATA_EREKEM))
-                                    erekem->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, ErekemPath, ErekemPathSize, true);
+                                    erekem->GetMotionMaster()->MovePath(ErekemPath, false);
 
                                 if (Creature* guard = instance->GetCreature(GetGuidData(DATA_EREKEM_GUARD_1)))
-                                    guard->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, ErekemGuardLeftPath, ErekemGuardLeftPathSize, true);
+                                    guard->GetMotionMaster()->MovePath(ErekemGuardLeftPath, false);
                                 if (Creature* guard = instance->GetCreature(GetGuidData(DATA_EREKEM_GUARD_2)))
-                                    guard->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, ErekemGuardRightPath, ErekemGuardRightPathSize, true);
+                                    guard->GetMotionMaster()->MovePath(ErekemGuardRightPath, false);
 
                                 task.Schedule(Seconds(6), [this](TaskContext task)
                                 {
@@ -615,7 +639,7 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(3), [this](TaskContext task)
                             {
                                 if (Creature* ichoron = GetCreature(DATA_ICHORON))
-                                    ichoron->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, IchoronPath, IchoronPathSize, true);
+                                    ichoron->GetMotionMaster()->MovePath(IchoronPath, false);
 
                                 task.Schedule(Seconds(14), [this](TaskContext /*task*/)
                                 {
@@ -637,7 +661,7 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(3), [this](TaskContext task)
                             {
                                 if (Creature* lavanthor = GetCreature(DATA_LAVANTHOR))
-                                    lavanthor->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, LavanthorPath, LavanthorPathSize, true);
+                                    lavanthor->GetMotionMaster()->MovePath(LavanthorPath, false);
 
                                 task.Schedule(Seconds(8), [this](TaskContext /*task*/)
                                 {
@@ -664,7 +688,7 @@ class instance_violet_hold : public InstanceMapScript
                                 task.Schedule(Seconds(4), [this](TaskContext task)
                                 {
                                     if (Creature* xevozz = GetCreature(DATA_XEVOZZ))
-                                        xevozz->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, XevozzPath, XevozzPathSize, true);
+                                        xevozz->GetMotionMaster()->MovePath(XevozzPath, false);
 
                                     task.Schedule(Seconds(4), [this](TaskContext /*task*/)
                                     {
@@ -690,7 +714,7 @@ class instance_violet_hold : public InstanceMapScript
                             task.Schedule(Seconds(6), [this](TaskContext task)
                             {
                                 if (Creature* zuramat = GetCreature(DATA_ZURAMAT))
-                                    zuramat->GetMotionMaster()->MoveSmoothPath(POINT_INTRO, ZuramatPath, ZuramatPathSize, true);
+                                    zuramat->GetMotionMaster()->MovePath(ZuramatPath, false);
 
                                 task.Schedule(Seconds(4), [this](TaskContext /*task*/)
                                 {
@@ -739,7 +763,7 @@ class instance_violet_hold : public InstanceMapScript
                                 guard->SetImmuneToAll(true);
                             }
                         }
-                        /* fallthrough */
+                        [[fallthrough]];
                     default:
                         if (boss->isDead())
                         {
@@ -765,7 +789,7 @@ class instance_violet_hold : public InstanceMapScript
                             FirstBossId = urand(DATA_MORAGG, DATA_ZURAMAT);
                         if (Creature* sinclari = GetCreature(DATA_SINCLARI))
                         {
-                            sinclari->SummonCreature(NPC_TELEPORTATION_PORTAL_INTRO, PortalIntroPositions[3], TEMPSUMMON_TIMED_DESPAWN, 3000);
+                            sinclari->SummonCreature(NPC_TELEPORTATION_PORTAL_INTRO, PortalIntroPositions[3], TEMPSUMMON_TIMED_DESPAWN, 3s);
                             sinclari->SummonCreature(NPC_SABOTEOUR, SaboteurSpawnLocation, TEMPSUMMON_DEAD_DESPAWN);
                         }
                         break;
@@ -777,14 +801,14 @@ class instance_violet_hold : public InstanceMapScript
                             } while (SecondBossId == FirstBossId);
                         if (Creature* sinclari = GetCreature(DATA_SINCLARI))
                         {
-                            sinclari->SummonCreature(NPC_TELEPORTATION_PORTAL_INTRO, PortalIntroPositions[3], TEMPSUMMON_TIMED_DESPAWN, 3000);
+                            sinclari->SummonCreature(NPC_TELEPORTATION_PORTAL_INTRO, PortalIntroPositions[3], TEMPSUMMON_TIMED_DESPAWN, 3s);
                             sinclari->SummonCreature(NPC_SABOTEOUR, SaboteurSpawnLocation, TEMPSUMMON_DEAD_DESPAWN);
                         }
                         break;
                     case 18:
                         if (Creature* sinclari = GetCreature(DATA_SINCLARI))
                         {
-                            sinclari->SummonCreature(NPC_TELEPORTATION_PORTAL_INTRO, PortalIntroPositions[4], TEMPSUMMON_TIMED_DESPAWN, 6000);
+                            sinclari->SummonCreature(NPC_TELEPORTATION_PORTAL_INTRO, PortalIntroPositions[4], TEMPSUMMON_TIMED_DESPAWN, 6s);
                             if (Creature* cyanigosa = sinclari->SummonCreature(NPC_CYANIGOSA, CyanigosaSpawnLocation, TEMPSUMMON_DEAD_DESPAWN))
                                 cyanigosa->CastSpell(cyanigosa, SPELL_CYANIGOSA_ARCANE_POWER_STATE, true);
                             ScheduleCyanigosaIntro();
@@ -794,17 +818,6 @@ class instance_violet_hold : public InstanceMapScript
                         SpawnPortal();
                         break;
                 }
-            }
-
-            void WriteSaveDataMore(std::ostringstream& data) override
-            {
-                data << FirstBossId << ' ' << SecondBossId;
-            }
-
-            void ReadSaveDataMore(std::istringstream& data) override
-            {
-                data >> FirstBossId;
-                data >> SecondBossId;
             }
 
             bool CheckWipe() const
@@ -855,9 +868,29 @@ class instance_violet_hold : public InstanceMapScript
 
             void Update(uint32 diff) override
             {
+                // if we don't have any player in the instance
                 if (!instance->HavePlayers())
+                {
+                    if (EventState == IN_PROGRESS) // if event is in progress, mark as fail
+                    {
+                        EventState = FAIL;
+                        CheckEventState();
+                    }
                     return;
+                }
 
+                Scheduler.Update(diff);
+
+                if (EventState == IN_PROGRESS)
+                {
+                    // if door is destroyed, event is failed
+                    if (!GetData(DATA_DOOR_INTEGRITY))
+                        EventState = FAIL;
+                }
+            }
+
+            void CheckEventState()
+            {
                 // if main event is in progress and players have wiped then reset instance
                 if ((EventState == IN_PROGRESS && CheckWipe()) || EventState == FAIL)
                 {
@@ -874,15 +907,6 @@ class instance_violet_hold : public InstanceMapScript
 
                     if (Creature* sinclari = GetCreature(DATA_SINCLARI))
                         sinclari->AI()->EnterEvadeMode();
-                }
-
-                Scheduler.Update(diff);
-
-                if (EventState == IN_PROGRESS)
-                {
-                    // if door is destroyed, event is failed
-                    if (!GetData(DATA_DOOR_INTEGRITY))
-                        EventState = FAIL;
                 }
             }
 
@@ -911,7 +935,7 @@ class instance_violet_hold : public InstanceMapScript
                 });
             }
 
-            void ProcessEvent(WorldObject* /*go*/, uint32 eventId) override
+            void ProcessEvent(WorldObject* /*go*/, uint32 eventId, WorldObject* /*invoker*/) override
             {
                 if (eventId == EVENT_ACTIVATE_CRYSTAL)
                 {
@@ -934,8 +958,8 @@ class instance_violet_hold : public InstanceMapScript
             static uint8 const ActivationCrystalCount = 5;
             ObjectGuid ActivationCrystalGUIDs[ActivationCrystalCount];
 
-            uint32 FirstBossId;
-            uint32 SecondBossId;
+            PersistentInstanceScriptValue<uint32> FirstBossId;
+            PersistentInstanceScriptValue<uint32> SecondBossId;
 
             uint8 DoorIntegrity;
             uint8 WaveCount;

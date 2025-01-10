@@ -18,12 +18,13 @@
 #include "ScriptMgr.h"
 #include "AreaBoundary.h"
 #include "CreatureAI.h"
+#include "EventMap.h"
 #include "GameObject.h"
 #include "InstanceScript.h"
 #include "Map.h"
-#include "MotionMaster.h"
 #include "naxxramas.h"
 #include "TemporarySummon.h"
+#include <sstream>
 
 BossBoundaryData const boundaries =
 {
@@ -60,40 +61,40 @@ BossBoundaryData const boundaries =
 
 DoorData const doorData[] =
 {
-    { GO_ROOM_ANUBREKHAN,       BOSS_ANUBREKHAN,    DOOR_TYPE_ROOM },
-    { GO_PASSAGE_ANUBREKHAN,    BOSS_ANUBREKHAN,    DOOR_TYPE_PASSAGE },
-    { GO_PASSAGE_FAERLINA,      BOSS_FAERLINA,      DOOR_TYPE_PASSAGE },
-    { GO_ROOM_MAEXXNA,          BOSS_FAERLINA,      DOOR_TYPE_PASSAGE },
-    { GO_ROOM_MAEXXNA,          BOSS_MAEXXNA,       DOOR_TYPE_ROOM },
-    { GO_ROOM_NOTH,             BOSS_NOTH,          DOOR_TYPE_ROOM },
-    { GO_PASSAGE_NOTH,          BOSS_NOTH,          DOOR_TYPE_PASSAGE },
-    { GO_ROOM_HEIGAN,           BOSS_NOTH,          DOOR_TYPE_PASSAGE },
-    { GO_ROOM_HEIGAN,           BOSS_HEIGAN,        DOOR_TYPE_ROOM },
-    { GO_PASSAGE_HEIGAN,        BOSS_HEIGAN,        DOOR_TYPE_PASSAGE },
-    { GO_ROOM_LOATHEB,          BOSS_HEIGAN,        DOOR_TYPE_PASSAGE },
-    { GO_ROOM_LOATHEB,          BOSS_LOATHEB,       DOOR_TYPE_ROOM },
-    { GO_ROOM_GROBBULUS,        BOSS_PATCHWERK,     DOOR_TYPE_PASSAGE },
-    { GO_ROOM_GROBBULUS,        BOSS_GROBBULUS,     DOOR_TYPE_ROOM },
-    { GO_PASSAGE_GLUTH,         BOSS_GLUTH,         DOOR_TYPE_PASSAGE },
-    { GO_ROOM_THADDIUS,         BOSS_GLUTH,         DOOR_TYPE_PASSAGE },
-    { GO_ROOM_THADDIUS,         BOSS_THADDIUS,      DOOR_TYPE_ROOM },
-    { GO_ROOM_GOTHIK,           BOSS_RAZUVIOUS,     DOOR_TYPE_PASSAGE },
-    { GO_ROOM_GOTHIK,           BOSS_GOTHIK,        DOOR_TYPE_ROOM },
-    { GO_PASSAGE_GOTHIK,        BOSS_GOTHIK,        DOOR_TYPE_PASSAGE },
-    { GO_ROOM_HORSEMEN,         BOSS_GOTHIK,        DOOR_TYPE_PASSAGE },
-    { GO_GOTHIK_GATE,           BOSS_GOTHIK,        DOOR_TYPE_ROOM },
-    { GO_ROOM_HORSEMEN,         BOSS_HORSEMEN,      DOOR_TYPE_ROOM },
-    { GO_PASSAGE_SAPPHIRON,     BOSS_SAPPHIRON,     DOOR_TYPE_PASSAGE },
-    { GO_ROOM_KELTHUZAD,        BOSS_KELTHUZAD,     DOOR_TYPE_ROOM },
-    { GO_ARAC_EYE_RAMP,         BOSS_MAEXXNA,       DOOR_TYPE_PASSAGE },
-    { GO_ARAC_EYE_RAMP_BOSS,    BOSS_MAEXXNA,       DOOR_TYPE_PASSAGE },
-    { GO_PLAG_EYE_RAMP,         BOSS_LOATHEB,       DOOR_TYPE_PASSAGE },
-    { GO_PLAG_EYE_RAMP_BOSS,    BOSS_LOATHEB,       DOOR_TYPE_PASSAGE },
-    { GO_MILI_EYE_RAMP,         BOSS_HORSEMEN,      DOOR_TYPE_PASSAGE },
-    { GO_MILI_EYE_RAMP_BOSS,    BOSS_HORSEMEN,      DOOR_TYPE_PASSAGE },
-    { GO_CONS_EYE_RAMP,         BOSS_THADDIUS,      DOOR_TYPE_PASSAGE },
-    { GO_CONS_EYE_RAMP_BOSS,    BOSS_THADDIUS,      DOOR_TYPE_PASSAGE },
-    { 0,                        0,                  DOOR_TYPE_ROOM }
+    { GO_ROOM_ANUBREKHAN,       BOSS_ANUBREKHAN,    EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_PASSAGE_ANUBREKHAN,    BOSS_ANUBREKHAN,    EncounterDoorBehavior::OpenWhenDone },
+    { GO_PASSAGE_FAERLINA,      BOSS_FAERLINA,      EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_MAEXXNA,          BOSS_FAERLINA,      EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_MAEXXNA,          BOSS_MAEXXNA,       EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_ROOM_NOTH,             BOSS_NOTH,          EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_PASSAGE_NOTH,          BOSS_NOTH,          EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_HEIGAN,           BOSS_NOTH,          EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_HEIGAN,           BOSS_HEIGAN,        EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_PASSAGE_HEIGAN,        BOSS_HEIGAN,        EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_LOATHEB,          BOSS_HEIGAN,        EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_LOATHEB,          BOSS_LOATHEB,       EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_ROOM_GROBBULUS,        BOSS_PATCHWERK,     EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_GROBBULUS,        BOSS_GROBBULUS,     EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_PASSAGE_GLUTH,         BOSS_GLUTH,         EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_THADDIUS,         BOSS_GLUTH,         EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_THADDIUS,         BOSS_THADDIUS,      EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_ROOM_GOTHIK,           BOSS_RAZUVIOUS,     EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_GOTHIK,           BOSS_GOTHIK,        EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_PASSAGE_GOTHIK,        BOSS_GOTHIK,        EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_HORSEMEN,         BOSS_GOTHIK,        EncounterDoorBehavior::OpenWhenDone },
+    { GO_GOTHIK_GATE,           BOSS_GOTHIK,        EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_ROOM_HORSEMEN,         BOSS_HORSEMEN,      EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_PASSAGE_SAPPHIRON,     BOSS_SAPPHIRON,     EncounterDoorBehavior::OpenWhenDone },
+    { GO_ROOM_KELTHUZAD,        BOSS_KELTHUZAD,     EncounterDoorBehavior::OpenWhenNotInProgress },
+    { GO_ARAC_EYE_RAMP,         BOSS_MAEXXNA,       EncounterDoorBehavior::OpenWhenDone },
+    { GO_ARAC_EYE_RAMP_BOSS,    BOSS_MAEXXNA,       EncounterDoorBehavior::OpenWhenDone },
+    { GO_PLAG_EYE_RAMP,         BOSS_LOATHEB,       EncounterDoorBehavior::OpenWhenDone },
+    { GO_PLAG_EYE_RAMP_BOSS,    BOSS_LOATHEB,       EncounterDoorBehavior::OpenWhenDone },
+    { GO_MILI_EYE_RAMP,         BOSS_HORSEMEN,      EncounterDoorBehavior::OpenWhenDone },
+    { GO_MILI_EYE_RAMP_BOSS,    BOSS_HORSEMEN,      EncounterDoorBehavior::OpenWhenDone },
+    { GO_CONS_EYE_RAMP,         BOSS_THADDIUS,      EncounterDoorBehavior::OpenWhenDone },
+    { GO_CONS_EYE_RAMP_BOSS,    BOSS_THADDIUS,      EncounterDoorBehavior::OpenWhenDone },
+    { 0,                        0,                  EncounterDoorBehavior::OpenWhenNotInProgress }
 };
 
 ObjectData const objectData[] =
@@ -104,6 +105,25 @@ ObjectData const objectData[] =
     { GO_NAXX_PORTAL_MILITARY,  DATA_NAXX_PORTAL_MILITARY  },
     { GO_KELTHUZAD_THRONE,      DATA_KELTHUZAD_THRONE      },
     { 0,                        0,                         }
+};
+
+DungeonEncounterData const encounters[] =
+{
+    { BOSS_ANUBREKHAN, {{ 1107 }} },
+    { BOSS_FAERLINA, {{  1110 }} },
+    { BOSS_MAEXXNA, {{ 1116 }} },
+    { BOSS_NOTH, {{ 1117 }} },
+    { BOSS_HEIGAN, {{ 1112 }} },
+    { BOSS_LOATHEB, {{ 1115 }} },
+    { BOSS_PATCHWERK, {{ 1118 }} },
+    { BOSS_GROBBULUS, {{ 1111 }} },
+    { BOSS_GLUTH, {{ 1108 }} },
+    { BOSS_THADDIUS, {{ 1120 }} },
+    { BOSS_RAZUVIOUS, {{ 1113 }} },
+    { BOSS_GOTHIK, {{ 1109 }} },
+    { BOSS_HORSEMEN, {{ 1121 }} },
+    { BOSS_SAPPHIRON, {{ 1119 }} },
+    { BOSS_KELTHUZAD, {{ 1114 }} }
 };
 
 class instance_naxxramas : public InstanceMapScript
@@ -120,14 +140,10 @@ class instance_naxxramas : public InstanceMapScript
                 LoadBossBoundaries(boundaries);
                 LoadDoorData(doorData);
                 LoadObjectData(nullptr, objectData);
+                LoadDungeonEncounterData(encounters);
 
                 hadSapphironBirth       = false;
                 CurrentWingTaunt        = SAY_KELTHUZAD_FIRST_WING_TAUNT;
-
-                playerDied              = 0;
-
-                nextFroggerWave         = 0;
-                events.ScheduleEvent(EVENT_SUMMON_FROGGER_WAVE, Seconds(1));
             }
 
             void OnCreatureCreate(Creature* creature) override
@@ -252,12 +268,6 @@ class instance_naxxramas : public InstanceMapScript
 
             void OnUnitDeath(Unit* unit) override
             {
-                if (unit->GetTypeId() == TYPEID_PLAYER && IsEncounterInProgress())
-                {
-                    playerDied = 1;
-                    SaveToDB();
-                }
-
                 if (Creature* creature = unit->ToCreature())
                     if (creature->GetEntry() == NPC_BIGGLESWORTH)
                     {
@@ -361,7 +371,7 @@ class instance_naxxramas : public InstanceMapScript
                             if (GameObject* teleporter = GetGameObject(DATA_NAXX_PORTAL_ARACHNID))
                                 teleporter->RemoveFlag(GO_FLAG_NOT_SELECTABLE);
 
-                            events.ScheduleEvent(EVENT_KELTHUZAD_WING_TAUNT, Seconds(6));
+                            events.ScheduleEvent(EVENT_KELTHUZAD_WING_TAUNT, 6s);
                         }
                         break;
                     case BOSS_LOATHEB:
@@ -370,7 +380,7 @@ class instance_naxxramas : public InstanceMapScript
                             if (GameObject* teleporter = GetGameObject(DATA_NAXX_PORTAL_PLAGUE))
                                 teleporter->RemoveFlag(GO_FLAG_NOT_SELECTABLE);
 
-                            events.ScheduleEvent(EVENT_KELTHUZAD_WING_TAUNT, Seconds(6));
+                            events.ScheduleEvent(EVENT_KELTHUZAD_WING_TAUNT, 6s);
                         }
                         break;
                     case BOSS_THADDIUS:
@@ -379,12 +389,12 @@ class instance_naxxramas : public InstanceMapScript
                             if (GameObject* teleporter = GetGameObject(DATA_NAXX_PORTAL_CONSTRUCT))
                                 teleporter->RemoveFlag(GO_FLAG_NOT_SELECTABLE);
 
-                            events.ScheduleEvent(EVENT_KELTHUZAD_WING_TAUNT, Seconds(6));
+                            events.ScheduleEvent(EVENT_KELTHUZAD_WING_TAUNT, 6s);
                         }
                         break;
                     case BOSS_GOTHIK:
                         if (state == DONE)
-                            events.ScheduleEvent(EVENT_DIALOGUE_GOTHIK_KORTHAZZ, Seconds(10));
+                            events.ScheduleEvent(EVENT_DIALOGUE_GOTHIK_KORTHAZZ, 10s);
                         break;
                     case BOSS_HORSEMEN:
                         if (state == DONE)
@@ -398,12 +408,12 @@ class instance_naxxramas : public InstanceMapScript
                             if (GameObject* teleporter = GetGameObject(DATA_NAXX_PORTAL_MILITARY))
                                 teleporter->RemoveFlag(GO_FLAG_NOT_SELECTABLE);
 
-                            events.ScheduleEvent(EVENT_KELTHUZAD_WING_TAUNT, Seconds(6));
+                            events.ScheduleEvent(EVENT_KELTHUZAD_WING_TAUNT, 6s);
                         }
                         break;
                     case BOSS_SAPPHIRON:
                         if (state == DONE)
-                            events.ScheduleEvent(EVENT_DIALOGUE_SAPPHIRON_KELTHUZAD, Seconds(6));
+                            events.ScheduleEvent(EVENT_DIALOGUE_SAPPHIRON_KELTHUZAD, 6s);
                         HandleGameObject(KelthuzadDoorGUID, false);
                         break;
                     case BOSS_KELTHUZAD:
@@ -429,17 +439,17 @@ class instance_naxxramas : public InstanceMapScript
                         case EVENT_DIALOGUE_GOTHIK_KORTHAZZ:
                             if (Creature* korthazz = instance->GetCreature(ThaneGUID))
                                 korthazz->AI()->Talk(SAY_DIALOGUE_GOTHIK_HORSEMAN);
-                            events.ScheduleEvent(EVENT_DIALOGUE_GOTHIK_ZELIEK, Seconds(5));
+                            events.ScheduleEvent(EVENT_DIALOGUE_GOTHIK_ZELIEK, 5s);
                             break;
                         case EVENT_DIALOGUE_GOTHIK_ZELIEK:
                             if (Creature* zeliek = instance->GetCreature(SirGUID))
                                 zeliek->AI()->Talk(SAY_DIALOGUE_GOTHIK_HORSEMAN);
-                            events.ScheduleEvent(EVENT_DIALOGUE_GOTHIK_BLAUMEUX, Seconds(6));
+                            events.ScheduleEvent(EVENT_DIALOGUE_GOTHIK_BLAUMEUX, 6s);
                             break;
                         case EVENT_DIALOGUE_GOTHIK_BLAUMEUX:
                             if (Creature* blaumeux = instance->GetCreature(LadyGUID))
                                 blaumeux->AI()->Talk(SAY_DIALOGUE_GOTHIK_HORSEMAN);
-                            events.ScheduleEvent(EVENT_DIALOGUE_GOTHIK_RIVENDARE, Seconds(6));
+                            events.ScheduleEvent(EVENT_DIALOGUE_GOTHIK_RIVENDARE, 6s);
                             break;
                         case EVENT_DIALOGUE_GOTHIK_RIVENDARE:
                             if (Creature* rivendare = instance->GetCreature(BaronGUID))
@@ -472,20 +482,10 @@ class instance_naxxramas : public InstanceMapScript
                                 kelthuzad->AI()->Talk(CurrentWingTaunt);
                             ++CurrentWingTaunt;
                             break;
-                        case EVENT_SUMMON_FROGGER_WAVE:
-                        {
-                            std::list<TempSummon*> spawns;
-                            instance->SummonCreatureGroup(nextFroggerWave, &spawns);
-                            if (!spawns.empty())
-                                spawns.front()->GetMotionMaster()->MovePath(10 * NPC_FROGGER + nextFroggerWave, false);
-                            events.Repeat(Seconds(1) + Milliseconds(666));
-                            nextFroggerWave = (nextFroggerWave+1) % 3;
-                            break;
-                        }
                         case EVENT_DIALOGUE_SAPPHIRON_KELTHUZAD:
                             if (Creature* kelthuzad = instance->GetCreature(KelthuzadGUID))
                                 kelthuzad->AI()->Talk(SAY_DIALOGUE_SAPPHIRON_KELTHUZAD);
-                            events.ScheduleEvent(EVENT_DIALOGUE_SAPPHIRON_LICHKING, Seconds(6));
+                            events.ScheduleEvent(EVENT_DIALOGUE_SAPPHIRON_LICHKING, 6s);
                             break;
                         case EVENT_DIALOGUE_SAPPHIRON_LICHKING:
                             if (Creature* lichKing = instance->GetCreature(LichKingGUID))
@@ -556,8 +556,6 @@ class instance_naxxramas : public InstanceMapScript
                     case 13239: // Loatheb
                     case 13240: // Thaddius
                     case 7617:  // Kel'Thuzad
-                        if (AreAllEncountersDone() && !playerDied)
-                            return true;
                         return false;
                 }
 
@@ -607,11 +605,6 @@ class instance_naxxramas : public InstanceMapScript
             ObjectGuid LichKingGUID;
             bool hadSapphironBirth;
             uint8 CurrentWingTaunt;
-
-            /* The Immortal / The Undying */
-            uint32 playerDied;
-
-            int8 nextFroggerWave;
 
             EventMap events;
         };

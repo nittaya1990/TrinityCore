@@ -43,9 +43,9 @@ public:
         return GetMaraudonAI<celebras_the_cursedAI>(creature);
     }
 
-    struct celebras_the_cursedAI : public ScriptedAI
+    struct celebras_the_cursedAI : public BossAI
     {
-        celebras_the_cursedAI(Creature* creature) : ScriptedAI(creature)
+        celebras_the_cursedAI(Creature* creature) : BossAI(creature, BOSS_CELEBRAS_THE_CURSED)
         {
             Initialize();
         }
@@ -63,14 +63,16 @@ public:
 
         void Reset() override
         {
+            BossAI::Reset();
+
             Initialize();
         }
 
-        void JustEngagedWith(Unit* /*who*/) override { }
-
-        void JustDied(Unit* /*killer*/) override
+        void JustDied(Unit* killer) override
         {
-            me->SummonCreature(13716, me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 0, TEMPSUMMON_TIMED_DESPAWN, 600000);
+            BossAI::JustDied(killer);
+
+            me->SummonCreature(13716, me->GetPositionX(), me->GetPositionY(), me->GetPositionZ(), 0, TEMPSUMMON_TIMED_DESPAWN, 10min);
         }
 
         void UpdateAI(uint32 diff) override
@@ -81,7 +83,7 @@ public:
             //Wrath
             if (WrathTimer <= diff)
             {
-                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                     DoCast(target, SPELL_WRATH);
                 WrathTimer = 8000;
             }
@@ -103,8 +105,6 @@ public:
                 CorruptForcesTimer = 20000;
             }
             else CorruptForcesTimer -= diff;
-
-            DoMeleeAttackIfReady();
         }
     };
 };

@@ -180,7 +180,7 @@ public:
                 //Charging_Timer
                 if (Charging_Timer <= diff)
                 {
-                    if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                    if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                     {
                         AttackStart(target);
                         DoCast(target, SPELL_BERSERKER_C);
@@ -195,8 +195,6 @@ public:
                     Roar_Timer = 40000 + (rand32() % 10000);
                 } else Roar_Timer -= diff;
             }
-
-            DoMeleeAttackIfReady();
         }
     };
 
@@ -290,12 +288,10 @@ public:
             //DeathCoil Timer /need correct timer
             if (DeathCoil_Timer <= diff)
             {
-                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                     DoCast(target, SPELL_DEATH_COIL);
                 DeathCoil_Timer = 20000;
             } else DeathCoil_Timer -= diff;
-
-            DoMeleeAttackIfReady();
         }
     };
 
@@ -363,7 +359,7 @@ public:
             //GreaterPolymorph_Timer
             if (GreaterPolymorph_Timer <= diff)
             {
-                if (Unit* target = SelectTarget(SELECT_TARGET_RANDOM, 0))
+                if (Unit* target = SelectTarget(SelectTargetMethod::Random, 0))
                     DoCast(target, SPELL_GREATER_POLYMORPH);
 
                 GreaterPolymorph_Timer = urand(15000, 20000);
@@ -389,8 +385,6 @@ public:
                 DoCastVictim(SPELL_ARCANE_EXPLOSION);
                 ArcaneExplosion_Timer = 30000;
             } else ArcaneExplosion_Timer -= diff;
-
-            DoMeleeAttackIfReady();
         }
     };
 
@@ -472,8 +466,6 @@ public:
                 DoCast(me, SPELL_PRAYER_OH);
                 PrayerofHealing_Timer = urand(35000, 50000);
             } else PrayerofHealing_Timer -= diff;
-
-            DoMeleeAttackIfReady();
         }
     };
 

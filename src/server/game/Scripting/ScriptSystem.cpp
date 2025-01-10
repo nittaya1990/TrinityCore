@@ -32,71 +32,15 @@ SystemMgr* SystemMgr::instance()
     return &instance;
 }
 
-void SystemMgr::LoadScriptWaypoints()
-{
-    uint32 oldMSTime = getMSTime();
-
-    // drop Existing Waypoint list
-    _waypointStore.clear();
-
-    uint64 entryCount = 0;
-
-    // load Waypoints
-    QueryResult result = WorldDatabase.Query("SELECT COUNT(entry) FROM script_waypoint GROUP BY entry");
-    if (result)
-        entryCount = result->GetRowCount();
-
-    TC_LOG_INFO("server.loading", "Loading Script Waypoints for " UI64FMTD " creature(s)...", entryCount);
-
-    //                                     0       1         2           3           4           5
-    result = WorldDatabase.Query("SELECT entry, pointid, location_x, location_y, location_z, waittime FROM script_waypoint ORDER BY pointid");
-
-    if (!result)
-    {
-        TC_LOG_INFO("server.loading", ">> Loaded 0 Script Waypoints. DB table `script_waypoint` is empty.");
-        return;
-    }
-    uint32 count = 0;
-
-    do
-    {
-        Field* fields = result->Fetch();
-        uint32 entry = fields[0].GetUInt32();
-        uint32 id = fields[1].GetUInt32();
-        float x = fields[2].GetFloat();
-        float y = fields[3].GetFloat();
-        float z = fields[4].GetFloat();
-        uint32 waitTime = fields[5].GetUInt32();
-
-        CreatureTemplate const* info = sObjectMgr->GetCreatureTemplate(entry);
-        if (!info)
-        {
-            TC_LOG_ERROR("sql.sql", "SystemMgr: DB table script_waypoint has waypoint for non-existant creature entry %u", entry);
-            continue;
-        }
-
-        if (!info->ScriptID)
-            TC_LOG_ERROR("sql.sql", "SystemMgr: DB table script_waypoint has waypoint for creature entry %u, but creature does not have ScriptName defined and then useless.", entry);
-
-        WaypointPath& path = _waypointStore[entry];
-        path.id = entry;
-        path.nodes.emplace_back(id, x, y, z, 0.f, waitTime);
-
-        ++count;
-    } while (result->NextRow());
-
-    TC_LOG_INFO("server.loading", ">> Loaded %u Script Waypoint nodes in %u ms", count, GetMSTimeDiffToNow(oldMSTime));
-}
-
 void SystemMgr::LoadScriptSplineChains()
 {
     uint32 oldMSTime = getMSTime();
 
     m_mSplineChainsMap.clear();
 
-    //                                                     0       1        2             3               4
-    QueryResult resultMeta = WorldDatabase.Query("SELECT entry, chainId, splineId, expectedDuration, msUntilNext FROM script_spline_chain_meta ORDER BY entry asc, chainId asc, splineId asc");
-    //                                                  0       1         2       3   4  5  6
+    //                                                   0      1        2         3                 4            5
+    QueryResult resultMeta = WorldDatabase.Query("SELECT entry, chainId, splineId, expectedDuration, msUntilNext, velocity FROM script_spline_chain_meta ORDER BY entry asc, chainId asc, splineId asc");
+    //                                                 0      1        2         3     4  5  6
     QueryResult resultWP = WorldDatabase.Query("SELECT entry, chainId, splineId, wpId, x, y, z FROM script_spline_chain_waypoints ORDER BY entry asc, chainId asc, splineId asc, wpId asc");
     if (!resultMeta || !resultWP)
     {
@@ -115,13 +59,14 @@ void SystemMgr::LoadScriptSplineChains()
 
             if (splineId != chain.size())
             {
-                TC_LOG_WARN("server.loading", "Creature #%u: Chain %u has orphaned spline %u, skipped.", entry, chainId, splineId);
+                TC_LOG_WARN("server.loading", "Creature #{}: Chain {} has orphaned spline {}, skipped.", entry, chainId, splineId);
                 continue;
             }
 
             uint32 expectedDuration = fieldsMeta[3].GetUInt32();
             uint32 msUntilNext = fieldsMeta[4].GetUInt32();
-            chain.emplace_back(expectedDuration, msUntilNext);
+            float velocity = fieldsMeta[5].GetFloat();
+            chain.emplace_back(expectedDuration, msUntilNext, velocity);
 
             if (splineId == 0)
                 ++chainCount;
@@ -138,36 +83,27 @@ void SystemMgr::LoadScriptSplineChains()
             auto it = m_mSplineChainsMap.find({entry,chainId});
             if (it == m_mSplineChainsMap.end())
             {
-                TC_LOG_WARN("server.loading", "Creature #%u has waypoint data for spline chain %u. No such chain exists - entry skipped.", entry, chainId);
+                TC_LOG_WARN("server.loading", "Creature #{} has waypoint data for spline chain {}. No such chain exists - entry skipped.", entry, chainId);
                 continue;
             }
             std::vector<SplineChainLink>& chain = it->second;
             if (splineId >= chain.size())
             {
-                TC_LOG_WARN("server.loading", "Creature #%u has waypoint data for spline (%u,%u). The specified chain does not have a spline with this index - entry skipped.", entry, chainId, splineId);
+                TC_LOG_WARN("server.loading", "Creature #{} has waypoint data for spline ({},{}). The specified chain does not have a spline with this index - entry skipped.", entry, chainId, splineId);
                 continue;
             }
             SplineChainLink& spline = chain[splineId];
             if (wpId != spline.Points.size())
             {
-                TC_LOG_WARN("server.loading", "Creature #%u has orphaned waypoint data in spline (%u,%u) at index %u. Skipped.", entry, chainId, splineId, wpId);
+                TC_LOG_WARN("server.loading", "Creature #{} has orphaned waypoint data in spline ({},{}) at index {}. Skipped.", entry, chainId, splineId, wpId);
                 continue;
             }
             spline.Points.emplace_back(posX, posY, posZ);
             ++wpCount;
         } while (resultWP->NextRow());
 
-        TC_LOG_INFO("server.loading", ">> Loaded spline chain data for %u chains, consisting of %u splines with %u waypoints in %u ms", chainCount, splineCount, wpCount, GetMSTimeDiffToNow(oldMSTime));
+        TC_LOG_INFO("server.loading", ">> Loaded spline chain data for {} chains, consisting of {} splines with {} waypoints in {} ms", chainCount, splineCount, wpCount, GetMSTimeDiffToNow(oldMSTime));
     }
-}
-
-WaypointPath const* SystemMgr::GetPath(uint32 creatureEntry) const
-{
-    auto itr = _waypointStore.find(creatureEntry);
-    if (itr == _waypointStore.end())
-        return nullptr;
-
-    return &itr->second;
 }
 
 std::vector<SplineChainLink> const* SystemMgr::GetSplineChain(uint32 entry, uint16 chainId) const

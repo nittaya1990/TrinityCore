@@ -17,7 +17,6 @@
 
 #include "GuardAI.h"
 #include "Creature.h"
-#include "Errors.h"
 #include "Log.h"
 #include "MotionMaster.h"
 #include "Player.h"
@@ -32,10 +31,7 @@ int32 GuardAI::Permissible(Creature const* creature)
 
 void GuardAI::UpdateAI(uint32 /*diff*/)
 {
-    if (!UpdateVictim())
-        return;
-
-    DoMeleeAttackIfReady();
+    UpdateVictim();
 }
 
 bool GuardAI::CanSeeAlways(WorldObject const* obj)
@@ -52,21 +48,22 @@ void GuardAI::EnterEvadeMode(EvadeReason /*why*/)
     {
         me->GetMotionMaster()->MoveIdle();
         me->CombatStop(true);
-        me->GetThreatManager().ClearAllThreat();
+        EngagementOver();
         return;
     }
 
-    TC_LOG_DEBUG("entities.unit", "Guard entry: %u enters evade mode.", me->GetEntry());
+    TC_LOG_TRACE("scripts.ai", "GuardAI::EnterEvadeMode: {} enters evade mode.", me->GetGUID().ToString());
 
     me->RemoveAllAuras();
-    me->GetThreatManager().ClearAllThreat();
     me->CombatStop(true);
+    EngagementOver();
 
     me->GetMotionMaster()->MoveTargetedHome();
 }
 
 void GuardAI::JustDied(Unit* killer)
 {
-    if (Player* player = killer->GetCharmerOrOwnerPlayerOrPlayerItself())
-        me->SendZoneUnderAttackMessage(player);
+    if (killer)
+        if (Player* player = killer->GetCharmerOrOwnerPlayerOrPlayerItself())
+            me->SendZoneUnderAttackMessage(player);
 }

@@ -16,10 +16,12 @@
  */
 
 #include "BankPackets.h"
+#include "DBCEnums.h"
 
 void WorldPackets::Bank::AutoBankItem::Read()
 {
     _worldPacket >> Inv
+                 >> As<int8>(BankType)
                  >> Bag
                  >> Slot;
 }
@@ -34,4 +36,29 @@ void WorldPackets::Bank::AutoStoreBankItem::Read()
 void WorldPackets::Bank::BuyBankSlot::Read()
 {
     _worldPacket >> Guid;
+}
+
+void WorldPackets::Bank::AutoBankReagent::Read()
+{
+    _worldPacket >> Inv;
+    _worldPacket >> PackSlot;
+    _worldPacket >> Slot;
+}
+
+void WorldPackets::Bank::AutoStoreBankReagent::Read()
+{
+    _worldPacket >> Inv;
+    _worldPacket >> Slot;
+    _worldPacket >> PackSlot;
+}
+
+void WorldPackets::Bank::ReagentBank::Read()
+{
+    _worldPacket >> Banker;
+}
+
+void WorldPackets::Bank::BankerActivate::Read()
+{
+    _worldPacket >> Banker;
+    _worldPacket >> As<int32>(InteractionType);
 }

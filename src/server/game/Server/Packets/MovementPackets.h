@@ -19,6 +19,7 @@
 #define MovementPackets_h__
 
 #include "Packet.h"
+#include "CombatLogPacketsCommon.h"
 #include "Object.h"
 #include "Optional.h"
 
@@ -104,8 +105,7 @@ namespace WorldPackets
             struct Inner
             {
                 int32 Unknown_1 = 0;
-                int32 Unknown_2 = 0;
-                int32 Unknown_3 = 0;
+                Spells::SpellCastVisual Visual;
                 uint32 Unknown_4 = 0;
             };
 
@@ -122,7 +122,7 @@ namespace WorldPackets
             std::vector<TaggedPosition<Position::XYZ>> Points;   // Spline path
             uint8 Mode                  = 0;    // Spline mode - actually always 0 in this packet - Catmullrom mode appears only in SMSG_UPDATE_OBJECT. In this packet it is determined by flags
             bool VehicleExitVoluntary   = false;
-            bool Interpolate            = false;
+            bool TaxiSmoothing          = false;
             ObjectGuid TransportGUID;
             int8 VehicleSeat            = -1;
             std::vector<TaggedPosition<Position::PackedXYZ>> PackedDeltas;
@@ -139,9 +139,8 @@ namespace WorldPackets
         struct MovementMonsterSpline
         {
             uint32 ID = 0;
-            TaggedPosition<Position::XYZ> Destination;
             bool CrzTeleport = false;
-            uint8 StopDistanceTolerance = 0;    // Determines how far from spline destination the mover is allowed to stop in place 0, 0, 3.0, 2.76, numeric_limits<float>::max, 1.1, float(INT_MAX); default before this field existed was distance 3.0 (index 2)
+            uint8 StopSplineStyle = 0;    // Determines how far from spline destination the mover is allowed to stop in place 0, 0, 3.0, 2.76, numeric_limits<float>::max, 1.1, float(INT_MAX); default before this field existed was distance 3.0 (index 2)
             MovementSpline Move;
         };
 
@@ -166,6 +165,17 @@ namespace WorldPackets
             MovementMonsterSpline SplineData;
             ObjectGuid MoverGUID;
             TaggedPosition<Position::XYZ> Pos;
+        };
+
+        class FlightSplineSync final : public ServerPacket
+        {
+        public:
+            FlightSplineSync() : ServerPacket(SMSG_FLIGHT_SPLINE_SYNC, 16 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid Guid;
+            float SplineDist = 0.0f;
         };
 
         class MoveSplineSetSpeed : public ServerPacket
@@ -202,6 +212,31 @@ namespace WorldPackets
             float Speed = 1.0f;
         };
 
+        class SetAdvFlyingSpeed final : public ServerPacket
+        {
+        public:
+            explicit SetAdvFlyingSpeed(OpcodeServer opcode) : ServerPacket(opcode, 16 + 4 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid MoverGUID;
+            uint32 SequenceIndex = 0;
+            float Speed = 1.0f;
+        };
+
+        class SetAdvFlyingSpeedRange final : public ServerPacket
+        {
+        public:
+            explicit SetAdvFlyingSpeedRange(OpcodeServer opcode) : ServerPacket(opcode, 16 + 4 + 4 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid MoverGUID;
+            uint32 SequenceIndex = 0;
+            float SpeedMin = 1.0f;
+            float SpeedMax = 1.0f;
+        };
+
         class MoveSplineSetFlag final : public ServerPacket
         {
         public:
@@ -223,14 +258,14 @@ namespace WorldPackets
             uint32 SequenceIndex = 0; ///< Unit movement packet index, incremented each time
         };
 
+        struct ShipTransferPending
+        {
+            uint32 ID = 0;              ///< gameobject_template.entry of the transport the player is teleporting on
+            int32 OriginMapID = -1;     ///< Map id the player is currently on (before teleport)
+        };
+
         class TransferPending final : public ServerPacket
         {
-            struct ShipTransferPending
-            {
-                uint32 ID = 0;              ///< gameobject_template.entry of the transport the player is teleporting on
-                int32 OriginMapID = -1;     ///< Map id the player is currently on (before teleport)
-            };
-
         public:
             TransferPending() : ServerPacket(SMSG_TRANSFER_PENDING, 16) { }
 
@@ -273,6 +308,7 @@ namespace WorldPackets
             uint32 Reason = 0;
             TeleportLocation Loc;
             TaggedPosition<Position::XYZ> MovementOffset;    // Adjusts all pending movement events by this offset
+            int32 Counter = 0;
         };
 
         class WorldPortResponse final : public ClientPacket
@@ -427,6 +463,18 @@ namespace WorldPackets
             float Speed = 0.0f;
         };
 
+        class MovementSpeedRangeAck final : public ClientPacket
+        {
+        public:
+            MovementSpeedRangeAck(WorldPacket&& packet) : ClientPacket(std::move(packet)) { }
+
+            void Read() override;
+
+            MovementAck Ack;
+            float SpeedMin = 1.0f;
+            float SpeedMax = 1.0f;
+        };
+
         class SetActiveMover final : public ClientPacket
         {
         public:
@@ -546,6 +594,17 @@ namespace WorldPackets
             uint32 TimeSkipped = 0;
         };
 
+        class MoveSkipTime final : public ServerPacket
+        {
+        public:
+            MoveSkipTime() : ServerPacket(SMSG_MOVE_SKIP_TIME, 16 + 4) { }
+
+            WorldPacket const* Write() override;
+
+            ObjectGuid MoverGUID;
+            uint32 TimeSkipped = 0;
+        };
+
         class SummonResponse final : public ClientPacket
         {
         public:
@@ -648,18 +707,27 @@ namespace WorldPackets
                 float InitVertSpeed = 0.0f;
             };
 
+            struct SpeedRange
+            {
+                float Min = 0.0f;
+                float Max = 0.0f;
+            };
+
             struct MoveStateChange
             {
                 MoveStateChange(OpcodeServer messageId, uint32 sequenceIndex) : MessageID(messageId), SequenceIndex(sequenceIndex) { }
 
-                uint16 MessageID = 0;
+                uint32 MessageID = 0;
                 uint32 SequenceIndex = 0;
                 Optional<float> Speed;
+                Optional<MoveSetCompoundState::SpeedRange> SpeedRange;
                 Optional<KnockBackInfo> KnockBack;
                 Optional<int32> VehicleRecID;
                 Optional<CollisionHeightInfo> CollisionHeight;
                 Optional<MovementForce> MovementForce_;
                 Optional<ObjectGuid> MovementForceGUID;
+                Optional<int32> MovementInertiaID;
+                Optional<uint32> MovementInertiaLifetimeMs;
             };
 
             MoveSetCompoundState() : ServerPacket(SMSG_MOVE_SET_COMPOUND_STATE, 4 + 1) { }
@@ -668,6 +736,16 @@ namespace WorldPackets
 
             ObjectGuid MoverGUID;
             std::vector<MoveStateChange> StateChanges;
+        };
+
+        class MoveInitActiveMoverComplete final : public ClientPacket
+        {
+        public:
+            MoveInitActiveMoverComplete(WorldPacket&& packet) : ClientPacket(CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE, std::move(packet)) { }
+
+            void Read() override;
+
+            uint32 Ticks = 0;
         };
     }
 
